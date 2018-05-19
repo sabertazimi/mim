@@ -71,20 +71,20 @@ class Mim {
 
         int start(void) throw(MimError) {
             while (true) {
-                char c = '\0';
+                char ch = '\0';
 
-                if (read(STDIN_FILENO, &c, 1) == -1 && errno != EAGAIN) {
+                if (read(STDIN_FILENO, &ch, 1) == -1 && errno != EAGAIN) {
                     throw MimError("Read failed.");
                 };
 
-                if (c == 'q') {
+                if (ch == 'q') {
                     break;
                 }
 
-                if (iscntrl(c)) {
-                    printf("%d\r\n", c);
+                if (iscntrl(ch)) {
+                    printf("%d\r\n", ch);
                 } else {
-                    printf("%c\r\n", c);
+                    printf("%c\r\n", ch);
                 }
             }
 
@@ -131,8 +131,6 @@ class Mim {
             }
         }
 };
-
-Mim *mim;
 
 int main(void) {
     Mim mim;

@@ -1,4 +1,4 @@
-DEMO=hello_world
+DEMO=init_func
 
 all:
 	mkdir -p ./bin
