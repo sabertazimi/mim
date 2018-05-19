@@ -8,7 +8,4 @@ run:
 	./mim
 
 clean:
-	rm -fr mim ncurses
-
-ncurses:
-	$(CXX) -Wall -Wextra -Werror -pedantic -std=c++14 ncurses_demo.cpp -lncurses -o ncurses
+	rm -fr mim
