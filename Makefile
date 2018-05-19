@@ -1,5 +1,5 @@
 all:
-	$(CXX) -Wall -Wextra -Werror -pedantic -std=c++11 mim.cpp -o mim
+	$(CXX) -Wall -Wextra -Werror -pedantic -std=c++14 mim.cpp -o mim
 
 install:
 	./install.sh
@@ -11,4 +11,4 @@ clean:
 	rm -fr mim ncurses
 
 ncurses:
-	$(CXX) -Wall -Wextra -Werror -pedantic -std=c++11 ncurses_demo.cpp -lncurses -o ncurses
+	$(CXX) -Wall -Wextra -Werror -pedantic -std=c++14 ncurses_demo.cpp -lncurses -o ncurses
