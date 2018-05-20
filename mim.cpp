@@ -44,8 +44,6 @@ class MimError : public exception {
 };
 
 struct MimConfig {
-    int cx;     // column number (start with 0)
-    int cy;     // row number (start with 0)
     int screen_rows;
     int screen_cols;
     bool verbose;
@@ -75,8 +73,6 @@ struct CursorPosition {
 class Mim {
     public:
         Mim(void) {
-            this->config.cx = 0;
-            this->config.cy = 0;
             this->config.verbose = false;
         }
 
@@ -102,8 +98,11 @@ class Mim {
 
         void init(void) throw(MimError) {
             try {
-                this->editor_state = Mim::State::stoped;
-                this->editor_mode = Mim::Mode::command;
+                this->editor_state = Mim::MimState::stoped;
+                this->editor_mode = Mim::MimMode::command;
+                this->cx = 0;
+                this->cy = 0;
+                this->num_rows = 0;
 
                 this->enableRawMode();
 
@@ -120,9 +119,9 @@ class Mim {
         }
 
         void start(void) throw(MimError) {
-            this->editor_state = Mim::State::running;
+            this->editor_state = Mim::MimState::running;
 
-            while (this->editor_state == Mim::State::running) {
+            while (this->editor_state == Mim::MimState::running) {
                 try {
                     this->editorRefreshScreen();
                     this->editorRefreshBuffer();
@@ -139,29 +138,34 @@ class Mim {
         }
 
         void set_config(const MimConfig &config) {
-            this->config.cx = config.cx;
-            this->config.cy = config.cy;
+            this->config.screen_rows = config.screen_rows;
+            this->config.screen_cols = config.screen_cols;
             this->config.verbose = config.verbose;
             this->config.orig_termios = config.orig_termios;
         }
 
     private:
-        enum State {
+        enum MimState {
             stoped,
             running,
             pending
         };
 
-        enum Mode {
+        enum MimMode {
             command,
             insert,
             lastline
         };
 
-        State editor_state;
-        Mode editor_mode;
+        MimState editor_state;
+        MimMode editor_mode;
         MimConfig config;
         const string version = "0.1.0";
+
+        int cx;     // column number (start with 0)
+        int cy;     // row number (start with 0)
+        int num_rows;
+        string row_buffer;
         string editor_buffer;
 
         /*** terminal ***/
@@ -310,7 +314,7 @@ class Mim {
         /*** manipulation ***/
 
         void closeEditor(void) {
-            this->editor_state = Mim::State::stoped;
+            this->editor_state = Mim::MimState::stoped;
             this->editorClearScreen();
             this->editorRefreshBuffer();
         }
@@ -320,23 +324,23 @@ class Mim {
         inline void editorMoveCursor(int key) {
             switch (key) {
                 case KEY_ARROW_LEFT:
-                    if (this->config.cx != 0) {
-                        this->config.cx--;
+                    if (this->cx != 0) {
+                        this->cx--;
                     }
                     break;
                 case KEY_ARROW_RIGHT:
-                    if (this->config.cx != this->config.screen_cols - 1) {
-                        this->config.cx++;
+                    if (this->cx != this->config.screen_cols - 1) {
+                        this->cx++;
                     }
                     break;
                 case KEY_ARROW_UP:
-                    if (this->config.cy != 0) {
-                        this->config.cy--;
+                    if (this->cy != 0) {
+                        this->cy--;
                     }
                     break;
                 case KEY_ARROW_DOWN:
-                    if (this->config.cy != this->config.screen_rows - 1) {
-                        this->config.cy++;
+                    if (this->cy != this->config.screen_rows - 1) {
+                        this->cy++;
                     }
                     break;
                 default:
@@ -355,10 +359,10 @@ class Mim {
         inline void editorHomeEnd(int key) {
             switch (key) {
                 case KEY_HOME:
-                    this->config.cx = 0;
+                    this->cx = 0;
                     break;
                 case KEY_END:
-                    this->config.cx = this->config.screen_cols - 1;
+                    this->cx = this->config.screen_cols - 1;
                     break;
                 default:
                     break;
@@ -368,7 +372,7 @@ class Mim {
         void editorProcessKeyPressInCommandMode(int ch) {
             switch (ch) {
                 case 'i':
-                    this->editor_mode = Mim::Mode::insert;
+                    this->editor_mode = Mim::MimMode::insert;
                     break;
                 case 'q':
                     this->closeEditor();
@@ -411,7 +415,7 @@ class Mim {
         void editorProcessKeyPressInInsertMode(int ch) {
             switch (ch) {
                 case KEY_ESC:
-                    this->editor_mode = Mim::Mode::command;
+                    this->editor_mode = Mim::MimMode::command;
                     break;
                 case KEY_CTRL('q'):
                     this->closeEditor();
@@ -450,13 +454,13 @@ class Mim {
                 int ch = this->editorReadKey();
 
                 switch (this->editor_mode) {
-                    case Mim::Mode::command:
+                    case Mim::MimMode::command:
                         this->editorProcessKeyPressInCommandMode(ch);
                         break;
-                    case Mim::Mode::insert:
+                    case Mim::MimMode::insert:
                         this->editorProcessKeyPressInInsertMode(ch);
                         break;
-                    case Mim::Mode::lastline:
+                    case Mim::MimMode::lastline:
                         this->editorProcessKeyPressInLastlineMode(ch);
                         break;
                     default:
@@ -528,8 +532,13 @@ class Mim {
             this->editorHideCursor();
             this->editorResetCursor();
             this->editorDrawRows();
-            this->editorMoveCursorTo(this->config.cx, this->config.cy);
+            this->editorMoveCursorTo(this->cx, this->cy);
             this->editorShowCursor();
+        }
+
+        /*** files ***/
+        void editorOpen(void) {
+            this->row_buffer.append("Hello, world!");
         }
 };
 
