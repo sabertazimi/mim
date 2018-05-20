@@ -1,3 +1,4 @@
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 #include <ctype.h>
@@ -30,7 +31,10 @@ class MimError : public exception {
 };
 
 struct MimConfig {
+    int screen_rows;
+    int screen_cols;
     bool verbose;
+    struct termios orig_termios;
 };
 
 class Mim {
@@ -65,6 +69,7 @@ class Mim {
         void init(void) throw(MimError) {
             try {
                 this->enableRawMode();
+                this->getWindowSize();
                 this->editorRefreshScreen();
 
                 if (this->config.verbose) {
@@ -96,6 +101,7 @@ class Mim {
 
         void set_config(const struct MimConfig &config) {
             this->config.verbose = config.verbose;
+            this->config.orig_termios = config.orig_termios;
         }
 
     private:
@@ -106,17 +112,16 @@ class Mim {
         };
 
         State editor_state;
-        struct termios orig_termios;
         struct MimConfig config;
 
         /*** terminal ***/
 
         void enableRawMode(void) throw(MimError) {
-            if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) {
+            if (tcgetattr(STDIN_FILENO, &(this->config.orig_termios)) == -1) {
                 throw MimError("Get terminal mode failed.");
             }
 
-            struct termios raw = orig_termios;
+            struct termios raw = this->config.orig_termios;
 
             // turn on raw mode
             raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
@@ -134,7 +139,7 @@ class Mim {
         }
 
         void disableRawMode(void) throw(MimError) {
-            if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1) {
+            if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &(this->config.orig_termios)) == -1) {
                 throw MimError("Set terminal mode failed.");
             }
         }
@@ -150,6 +155,17 @@ class Mim {
             }
 
             return ch;
+        }
+
+        void getWindowSize() throw(MimError) {
+            struct winsize ws;
+
+            if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
+                throw MimError("Get window size failed.");
+            } else {
+                this->config.screen_rows = ws.ws_row;
+                this->config.screen_cols = ws.ws_col;
+            }
         }
 
         /*** input ***/
@@ -173,7 +189,7 @@ class Mim {
 
         /*** output ***/
         inline void editorDrawRows(void) {
-            for (int y = 0; y < 24; ++y) {
+            for (int y = 0; y < this->config.screen_rows; ++y) {
                 write(STDOUT_FILENO, "~\r\n", 3);
             }
         }
