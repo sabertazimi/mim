@@ -11,6 +11,11 @@
 using namespace std;
 
 #define KEY_CTRL(k)  ((k) & 0x1f)
+#define KEY_ESC 27
+#define KEY_ARROW_LEFT 1000
+#define KEY_ARROW_RIGHT 1001
+#define KEY_ARROW_UP 1002
+#define KEY_ARROW_DOWN 1003
 
 class MimError : public exception {
     public:
@@ -64,7 +69,7 @@ class Mim {
         Mim(void) {
             this->config.cx = 0;
             this->config.cy = 0;
-            this->config.verbose = true;
+            this->config.verbose = false;
         }
 
         Mim(const Mim &mim) {
@@ -181,13 +186,40 @@ class Mim {
             }
         }
 
-        char editorReadKey(void) throw(MimError) {
+        int editorReadKey(void) throw(MimError) {
             int nread;
             char ch;
 
             while ((nread = read(STDIN_FILENO, &ch, 1)) != 1) {
                 if (nread == -1 && errno != EAGAIN) {
                     throw MimError("Input failed.");
+                }
+            }
+
+            if (ch == KEY_ESC) {
+                char seq[3];
+
+                if (read(STDIN_FILENO, &seq[0], 1) != 1) {
+                    return KEY_ESC;
+                }
+
+                if (read(STDIN_FILENO, &seq[1], 1) != 1) {
+                    return KEY_ESC;
+                }
+
+                if (seq[0] == '[') {
+                    switch(seq[1]) {
+                        case 'A':
+                            return KEY_ARROW_UP;
+                        case 'B':
+                            return KEY_ARROW_DOWN;
+                        case 'C':
+                            return KEY_ARROW_RIGHT;
+                        case 'D':
+                            return KEY_ARROW_LEFT;
+                        default:
+                            return KEY_ESC;
+                    }
                 }
             }
 
@@ -241,34 +273,49 @@ class Mim {
 
         /*** input ***/
 
-        void editorMoveCursor(char key) {
+        void editorMoveCursor(int key) {
             switch(key) {
-                case 'h':
+                case KEY_ARROW_LEFT:
                     this->config.cx--;
                     break;
-                case 'j':
-                    this->config.cy++;
+                case KEY_ARROW_RIGHT:
+                    this->config.cx++;
                     break;
-                case 'k':
+                case KEY_ARROW_UP:
                     this->config.cy--;
                     break;
-                case 'l':
-                    this->config.cx++;
+                case KEY_ARROW_DOWN:
+                    this->config.cy++;
                     break;
                 default:
                     break;
             }
         }
 
-        void editorProcessKeyPressInCommandMode(char ch) {
+        void editorProcessKeyPressInCommandMode(int ch) {
             switch (ch) {
+                case 'i':
+                    this->editor_mode = Mim::Mode::insert;
+                    break;
                 case 'q':
                     this->closeEditor();
                     break;
                 case 'h':
+                    this->editorMoveCursor(KEY_ARROW_LEFT);
+                    break;
                 case 'j':
+                    this->editorMoveCursor(KEY_ARROW_DOWN);
+                    break;
                 case 'k':
+                    this->editorMoveCursor(KEY_ARROW_UP);
+                    break;
                 case 'l':
+                    this->editorMoveCursor(KEY_ARROW_RIGHT);
+                    break;
+                case KEY_ARROW_LEFT:
+                case KEY_ARROW_RIGHT:
+                case KEY_ARROW_UP:
+                case KEY_ARROW_DOWN:
                     this->editorMoveCursor(ch);
                     break;
                 default:
@@ -276,17 +323,26 @@ class Mim {
             }
         }
 
-        void editorProcessKeyPressInInsertMode(char ch) {
+        void editorProcessKeyPressInInsertMode(int ch) {
             switch (ch) {
+                case KEY_ESC:
+                    this->editor_mode = Mim::Mode::command;
+                    break;
                 case KEY_CTRL('q'):
                     this->closeEditor();
+                    break;
+                case KEY_ARROW_LEFT:
+                case KEY_ARROW_RIGHT:
+                case KEY_ARROW_UP:
+                case KEY_ARROW_DOWN:
+                    this->editorMoveCursor(ch);
                     break;
                 default:
                     break;
             }
         }
 
-        void editorProcessKeyPressInLastlineMode(char ch) {
+        void editorProcessKeyPressInLastlineMode(int ch) {
             switch (ch) {
                 case KEY_CTRL('q'):
                     this->closeEditor();
@@ -298,7 +354,7 @@ class Mim {
 
         void editorProcessKeyPress(void) throw(MimError) {
             try {
-                char ch = this->editorReadKey();
+                int ch = this->editorReadKey();
 
                 switch(this->editor_mode) {
                     case Mim::Mode::command:
