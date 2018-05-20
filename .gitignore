@@ -53,3 +53,5 @@ dkms.conf
 
 mim
 ncurses/bin
+
+.log

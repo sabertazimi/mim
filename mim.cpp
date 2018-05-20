@@ -75,7 +75,7 @@ struct CursorPosition {
 class Mim {
     public:
         Mim(void) {
-            this->config.verbose = false;
+            this->config.verbose = true;
         }
 
         Mim(const Mim &mim) {
@@ -91,7 +91,8 @@ class Mim {
                 this->disableRawMode();
 
                 if (this->config.verbose) {
-                    printf("=> Exit...\r\n");
+                    fprintf(log, "=> Exit...\r\n");
+                    fclose(log);
                 }
             } catch (const MimError &e) {
                 printf("%s\r\n", e.what());
@@ -105,6 +106,7 @@ class Mim {
                 this->cx = 0;
                 this->cy = 0;
                 this->row_off = 0;
+                this->col_off = 0;
                 this->num_rows = 0;
                 this->rows_buffer.clear();
                 this->editor_buffer.clear();
@@ -117,7 +119,13 @@ class Mim {
                 this->config.screen_cols = ws.ws_col;
 
                 if (this->config.verbose) {
-                    printf("=> Init...\r\n");
+                    log = fopen(".log", "w+");
+
+                    if (log == NULL) {
+                        throw MimError("Open log file failed.");
+                    }
+
+                    fprintf(log, "=> Init...\r\n");
                 }
             } catch (const MimError &e) {
                 throw e;
@@ -176,14 +184,17 @@ class Mim {
         MimConfig config;
         const string version = "0.1.0";
 
-        int cx;     // column number (start with 0)
-        int cy;     // row number in file (start with 0)
+        int cx;     // column number in the file (start with 0) (not cursor position)
+        int cy;     // row number in the file (start with 0) (not cursor position)
         int num_rows;
         int row_off;
+        int col_off;
         vector<string> rows_buffer;
         string editor_buffer;
 
         string command_buffer;
+
+        FILE *log;
 
         /*** terminal ***/
 
@@ -346,9 +357,7 @@ class Mim {
                     }
                     break;
                 case KEY_ARROW_RIGHT:
-                    if (this->cx != this->config.screen_cols - 1) {
-                        ++this->cx;
-                    }
+                    ++this->cx;
                     break;
                 case KEY_ARROW_UP:
                     if (this->cy != 0) {
@@ -506,6 +515,30 @@ class Mim {
             if (this->cy >= this->row_off + this->config.screen_rows) {
                 this->row_off = this->cy - this->config.screen_rows + 1;
             }
+
+            if (this->cx < this->col_off) {
+                this->col_off = this->cx;
+            }
+
+            if (this->cx >= this->col_off + this->config.screen_cols) {
+                this->col_off = this->cx - this->config.screen_cols + 1;
+            }
+        }
+
+        inline void editorShowVersion(void) {
+            string welcome_msg = "Mim Editor -- version " + this->version;
+            int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
+
+            if (padding) {
+                this->editor_buffer.append("~");
+                --padding;
+            }
+
+            while (padding--) {
+                this->editor_buffer.append(" ");
+            }
+
+            this->editor_buffer.append(welcome_msg);
         }
 
         inline void editorDrawRows(void) {
@@ -513,24 +546,22 @@ class Mim {
                 int file_row = y + row_off;
                 if (file_row >= rows) {
                     if (rows == 0 && y == maxrows / 3) {
-                        string welcome_msg = "Mim Editor -- version " + this->version;
-                        int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
-
-                        if (padding) {
-                            this->editor_buffer.append("~");
-                            --padding;
-                        }
-
-                        while (padding--) {
-                            this->editor_buffer.append(" ");
-                        }
-
-                        this->editor_buffer.append(welcome_msg);
+                        this->editorShowVersion();
                     } else {
                         this->editor_buffer.append("~");
                     }
                 } else {
-                    this->editor_buffer.append(this->rows_buffer[file_row]);
+                    int length = this->rows_buffer[file_row].length() - this->col_off;
+                    length = max(length, 0);
+                    length = min(length, this->config.screen_cols);
+
+                    try {
+                        this->editor_buffer.append(this->rows_buffer[file_row].substr(this->col_off, length));
+                    } catch (const out_of_range &e) {
+                        if (this->config.verbose) {
+                            fprintf(log, "col_off: %d, length: %d\r\n", this->col_off, length);
+                        }
+                    }
                 }
 
                 this->editor_buffer.append("\x1b[K");
@@ -568,7 +599,7 @@ class Mim {
             this->editorHideCursor();
             this->editorResetCursor();
             this->editorDrawRows();
-            this->editorMoveCursorTo(this->cx, this->cy - this->row_off);
+            this->editorMoveCursorTo(this->cx - this->col_off, this->cy - this->row_off);
             this->editorShowCursor();
         }
 
