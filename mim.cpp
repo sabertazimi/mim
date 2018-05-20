@@ -7,6 +7,8 @@
 #include <stdlib.h>
 #include <stdexcept>
 #include <string>
+#include <vector>
+#include <fstream>
 
 using namespace std;
 
@@ -103,6 +105,7 @@ class Mim {
                 this->cx = 0;
                 this->cy = 0;
                 this->num_rows = 0;
+                this->rows_buffer.clear();
 
                 this->enableRawMode();
 
@@ -129,6 +132,14 @@ class Mim {
                 } catch (const MimError &e) {
                     throw e;
                 }
+            }
+        }
+
+        void openFile(const char *filename) throw(MimError) {
+            try {
+                this->editorOpen(filename);
+            } catch (const MimError &e) {
+                throw e;
             }
         }
 
@@ -165,7 +176,7 @@ class Mim {
         int cx;     // column number (start with 0)
         int cy;     // row number (start with 0)
         int num_rows;
-        string row_buffer;
+        vector<string> rows_buffer;
         string editor_buffer;
 
         /*** terminal ***/
@@ -325,22 +336,22 @@ class Mim {
             switch (key) {
                 case KEY_ARROW_LEFT:
                     if (this->cx != 0) {
-                        this->cx--;
+                        --this->cx;
                     }
                     break;
                 case KEY_ARROW_RIGHT:
                     if (this->cx != this->config.screen_cols - 1) {
-                        this->cx++;
+                        ++this->cx;
                     }
                     break;
                 case KEY_ARROW_UP:
                     if (this->cy != 0) {
-                        this->cy--;
+                        --this->cy;
                     }
                     break;
                 case KEY_ARROW_DOWN:
                     if (this->cy != this->config.screen_rows - 1) {
-                        this->cy++;
+                        ++this->cy;
                     }
                     break;
                 default:
@@ -479,28 +490,32 @@ class Mim {
         }
 
         inline void editorDrawRows(void) {
-            for (int y = 0, rows = this->config.screen_rows; y < rows; ++y) {
-                if (y == rows / 3) {
-                    string welcome_msg = "Mim Editor -- version " + this->version;
-                    int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
+            for (int y = 0, rows = this->num_rows, maxrows = this->config.screen_rows; y < maxrows; ++y) {
+                if (y >= rows) {
+                    if (rows == 0 && y == maxrows / 3) {
+                        string welcome_msg = "Mim Editor -- version " + this->version;
+                        int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
 
-                    if (padding) {
+                        if (padding) {
+                            this->editor_buffer.append("~");
+                            --padding;
+                        }
+
+                        while (padding--) {
+                            this->editor_buffer.append(" ");
+                        }
+
+                        this->editor_buffer.append(welcome_msg);
+                    } else {
                         this->editor_buffer.append("~");
-                        --padding;
                     }
-
-                    while (padding--) {
-                        this->editor_buffer.append(" ");
-                    }
-
-                    this->editor_buffer.append(welcome_msg);
                 } else {
-                    this->editor_buffer.append("~");
+                    this->editor_buffer.append(this->rows_buffer[y]);
                 }
 
                 this->editor_buffer.append("\x1b[K");
 
-                if (y < rows - 1) {
+                if (y < maxrows - 1) {
                     this->editor_buffer.append("\r\n");
                 }
             }
@@ -536,17 +551,45 @@ class Mim {
             this->editorShowCursor();
         }
 
+        /*** row operations ***/
+        void editorAppendRow(const string &line) {
+            this->rows_buffer.push_back(line);
+            ++this->num_rows;
+        }
+
         /*** files ***/
-        void editorOpen(void) {
-            this->row_buffer.append("Hello, world!");
+        void editorOpen(const char *filename) {
+            fstream fs;
+            fs.open(filename, fstream::in | fstream::out);
+
+            if (!fs) {
+                fs.open(filename, fstream::in | fstream::out | fstream::trunc);
+
+                if (!fs) {
+                    throw MimError("Open file failed.");
+                }
+            }
+
+            string line;
+
+            while (getline(fs, line)) {
+                this->editorAppendRow(line);
+            }
+
+            fs.close();
         }
 };
 
-int main(void) {
+int main(int argc, char **argv) {
     Mim mim;
 
     try {
         mim.init();
+
+        if (argc >= 2) {
+            mim.openFile(argv[1]);
+        }
+
         mim.start();
     } catch (const MimError &e) {
         printf("%s\r\n", e.what());
