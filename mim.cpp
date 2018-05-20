@@ -37,20 +37,40 @@ struct MimConfig {
     struct termios orig_termios;
 };
 
+struct CursorPosition {
+    int row;
+    int col;
+
+    CursorPosition(void) {
+        this->row = 0;
+        this->col = 0;
+    }
+
+    CursorPosition(int row, int col) {
+        this->row = row;
+        this->col = col;
+    }
+
+    CursorPosition(const CursorPosition &curpos) {
+        this->row = curpos.row;
+        this->col = curpos.col;
+    }
+};
+
 class Mim {
     public:
         Mim(void) {
-            this->editor_state = Mim::State::stop;
+            this->editor_state = Mim::State::stoped;
             this->config.verbose = true;
         }
 
         Mim(const Mim &mim) {
-            this->editor_state = Mim::State::stop;
+            this->editor_state = Mim::State::stoped;
             this->set_config(mim.get_config());
         }
 
-        Mim(const struct MimConfig &config) {
-            this->editor_state = Mim::State::stop;
+        Mim(const MimConfig &config) {
+            this->editor_state = Mim::State::stoped;
             this->set_config(config);
         }
 
@@ -69,7 +89,11 @@ class Mim {
         void init(void) throw(MimError) {
             try {
                 this->enableRawMode();
-                this->getWindowSize();
+
+                struct winsize ws = this->getWindowSize();
+                this->config.screen_rows = ws.ws_row;
+                this->config.screen_cols = ws.ws_col;
+
                 this->editorRefreshScreen();
 
                 if (this->config.verbose) {
@@ -80,7 +104,7 @@ class Mim {
             }
         }
 
-        int start(void) throw(MimError) {
+        void start(void) throw(MimError) {
             this->editor_state = Mim::State::running;
 
             while (this->editor_state == Mim::State::running) {
@@ -90,29 +114,33 @@ class Mim {
                     throw e;
                 }
             }
-
-            return 0;
         }
 
     protected:
-        const struct MimConfig &get_config(void) const {
+        const MimConfig &get_config(void) const {
             return this->config;
         }
 
-        void set_config(const struct MimConfig &config) {
+        void set_config(const MimConfig &config) {
             this->config.verbose = config.verbose;
             this->config.orig_termios = config.orig_termios;
         }
 
     private:
         enum State {
-            stop,
+            stoped,
             running,
             pending
         };
 
+        enum Mode {
+            command,
+            insert,
+            lastline
+        };
+
         State editor_state;
-        struct MimConfig config;
+        MimConfig config;
 
         /*** terminal ***/
 
@@ -157,15 +185,41 @@ class Mim {
             return ch;
         }
 
-        void getWindowSize() throw(MimError) {
+        const struct winsize getWindowSize() throw(MimError) {
             struct winsize ws;
 
             if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
                 throw MimError("Get window size failed.");
-            } else {
-                this->config.screen_rows = ws.ws_row;
-                this->config.screen_cols = ws.ws_col;
             }
+
+            return ws;
+        }
+
+        const CursorPosition getCursorPosition(void) throw(MimError) {
+            char buf[32];
+            int row = 0;
+            int col = 0;
+
+            if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4) {
+                throw MimError("Get cursor position failed.");
+            }
+
+            for (unsigned int i = 0; i < sizeof(buf) - 1; ++i) {
+                if (read(STDIN_FILENO, &buf[i], 1) != 1 || buf[i] == 'R')  {
+                    buf[i] = '\0';
+                    break;
+                }
+            }
+
+            if (buf[0] != '\x1b' || buf[1] != '[') {
+                throw MimError("Get cursor position failed.");
+            }
+
+            if (sscanf(&buf[2], "%d;%d", &row, &col) != 2) {
+                throw MimError("Get cursor position failed.");
+            }
+
+            return CursorPosition(row, col);
         }
 
         /*** input ***/
@@ -176,7 +230,7 @@ class Mim {
 
                 switch (ch) {
                     case KEY_CTRL('q'):
-                        this->editor_state = Mim::State::stop;
+                        this->editor_state = Mim::State::stoped;
                         this->editorClearScreen();
                         break;
                     default:
@@ -190,7 +244,11 @@ class Mim {
         /*** output ***/
         inline void editorDrawRows(void) {
             for (int y = 0; y < this->config.screen_rows; ++y) {
-                write(STDOUT_FILENO, "~\r\n", 3);
+                write(STDOUT_FILENO, "~", 1);
+
+                if (y < this->config.screen_rows - 1) {
+                    write(STDOUT_FILENO, "\r\n", 2);
+                }
             }
         }
 
