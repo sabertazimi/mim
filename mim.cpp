@@ -11,11 +11,18 @@
 using namespace std;
 
 #define KEY_CTRL(k)  ((k) & 0x1f)
-#define KEY_ESC 27
-#define KEY_ARROW_LEFT 1000
-#define KEY_ARROW_RIGHT 1001
-#define KEY_ARROW_UP 1002
-#define KEY_ARROW_DOWN 1003
+
+enum EditorKey {
+    KEY_ESC = 27,
+    KEY_ARROW_LEFT = 1000,
+    KEY_ARROW_RIGHT,
+    KEY_ARROW_UP,
+    KEY_ARROW_DOWN,
+    KEY_PAGE_UP,
+    KEY_PAGE_DOWN,
+    KEY_HOME,
+    KEY_END
+};
 
 class MimError : public exception {
     public:
@@ -208,17 +215,32 @@ class Mim {
                 }
 
                 if (seq[0] == '[') {
-                    switch(seq[1]) {
-                        case 'A':
-                            return KEY_ARROW_UP;
-                        case 'B':
-                            return KEY_ARROW_DOWN;
-                        case 'C':
-                            return KEY_ARROW_RIGHT;
-                        case 'D':
-                            return KEY_ARROW_LEFT;
-                        default:
+                    if (seq[1] >= '0' && seq[1] <= '9') {
+                        if (read(STDIN_FILENO, &seq[2], 1) != 1) {
                             return KEY_ESC;
+                        }
+
+                        if (seq[2] == '~') {
+                            switch (seq[1]) {
+                                case '5':
+                                    return KEY_PAGE_UP;
+                                case '6':
+                                    return KEY_PAGE_DOWN;
+                            }
+                        }
+                    } else {
+                        switch (seq[1]) {
+                            case 'A':
+                                return KEY_ARROW_UP;
+                            case 'B':
+                                return KEY_ARROW_DOWN;
+                            case 'C':
+                                return KEY_ARROW_RIGHT;
+                            case 'D':
+                                return KEY_ARROW_LEFT;
+                            default:
+                                return KEY_ESC;
+                        }
                     }
                 }
             }
@@ -274,7 +296,7 @@ class Mim {
         /*** input ***/
 
         void editorMoveCursor(int key) {
-            switch(key) {
+            switch (key) {
                 case KEY_ARROW_LEFT:
                     if (this->config.cx != 0) {
                         this->config.cx--;
@@ -297,6 +319,14 @@ class Mim {
                     break;
                 default:
                     break;
+            }
+        }
+
+        void editorPageUpDown(int key) {
+            int times = this->config.screen_rows;
+
+            while (times--) {
+                editorMoveCursor(key == KEY_PAGE_UP ? KEY_ARROW_UP : KEY_ARROW_DOWN);
             }
         }
 
@@ -326,6 +356,12 @@ class Mim {
                 case KEY_ARROW_DOWN:
                     this->editorMoveCursor(ch);
                     break;
+                case KEY_CTRL('u'):
+                    this->editorPageUpDown(KEY_PAGE_UP);
+                    break;
+                case KEY_CTRL('d'):
+                    this->editorPageUpDown(KEY_PAGE_DOWN);
+                    break;
                 default:
                     break;
             }
@@ -344,6 +380,10 @@ class Mim {
                 case KEY_ARROW_UP:
                 case KEY_ARROW_DOWN:
                     this->editorMoveCursor(ch);
+                    break;
+                case KEY_PAGE_UP:
+                case KEY_PAGE_DOWN:
+                    this->editorPageUpDown(ch);
                     break;
                 default:
                     break;
@@ -364,7 +404,7 @@ class Mim {
             try {
                 int ch = this->editorReadKey();
 
-                switch(this->editor_mode) {
+                switch (this->editor_mode) {
                     case Mim::Mode::command:
                         this->editorProcessKeyPressInCommandMode(ch);
                         break;
