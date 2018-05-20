@@ -9,6 +9,8 @@
 
 using namespace std;
 
+#define KEY_CTRL(k)  ((k) & 0x1f)
+
 class MimError : public exception {
     public:
         MimError(const string &msg) {
@@ -34,14 +36,17 @@ struct MimConfig {
 class Mim {
     public:
         Mim(void) {
+            this->editor_state = Mim::State::stop;
             this->config.verbose = true;
         }
 
         Mim(const Mim &mim) {
+            this->editor_state = Mim::State::stop;
             this->set_config(mim.get_config());
         }
 
         Mim(const struct MimConfig &config) {
+            this->editor_state = Mim::State::stop;
             this->set_config(config);
         }
 
@@ -70,27 +75,20 @@ class Mim {
         }
 
         int start(void) throw(MimError) {
-            while (true) {
-                char ch = '\0';
+            this->editor_state = Mim::State::running;
 
-                if (read(STDIN_FILENO, &ch, 1) == -1 && errno != EAGAIN) {
-                    throw MimError("Read failed.");
-                };
-
-                if (ch == 'q') {
-                    break;
-                }
-
-                if (iscntrl(ch)) {
-                    printf("%d\r\n", ch);
-                } else {
-                    printf("%c\r\n", ch);
+            while (this->editor_state == Mim::State::running) {
+                try {
+                    editorProcessKeyPress();
+                } catch (const MimError &e) {
+                    throw e;
                 }
             }
 
             return 0;
         }
 
+    protected:
         const struct MimConfig &get_config(void) const {
             return this->config;
         }
@@ -100,6 +98,13 @@ class Mim {
         }
 
     private:
+        enum State {
+            stop,
+            running,
+            pending
+        };
+
+        State editor_state;
         struct termios orig_termios;
         struct MimConfig config;
 
@@ -128,6 +133,35 @@ class Mim {
         void disableRawMode(void) throw(MimError) {
             if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1) {
                 throw MimError("Set terminal mode failed.");
+            }
+        }
+
+        char editorReadKey(void) throw(MimError) {
+            int nread;
+            char ch;
+
+            while ((nread = read(STDIN_FILENO, &ch, 1)) != 1) {
+                if (nread == -1 && errno != EAGAIN) {
+                    throw MimError("Input failed.");
+                }
+            }
+
+            return ch;
+        }
+
+        void editorProcessKeyPress(void) throw(MimError) {
+            try {
+                char ch = editorReadKey();
+
+                switch (ch) {
+                    case KEY_CTRL('q'):
+                        this->editor_state = Mim::State::stop;
+                        break;
+                    default:
+                        break;
+                }
+            } catch (const MimError &e) {
+                throw e;
             }
         }
 };
