@@ -104,6 +104,7 @@ class Mim {
                 this->editor_mode = Mim::MimMode::command;
                 this->cx = 0;
                 this->cy = 0;
+                this->row_off = 0;
                 this->num_rows = 0;
                 this->rows_buffer.clear();
 
@@ -174,8 +175,9 @@ class Mim {
         const string version = "0.1.0";
 
         int cx;     // column number (start with 0)
-        int cy;     // row number (start with 0)
+        int cy;     // row number in file (start with 0)
         int num_rows;
+        int row_off;
         vector<string> rows_buffer;
         string editor_buffer;
 
@@ -350,7 +352,7 @@ class Mim {
                     }
                     break;
                 case KEY_ARROW_DOWN:
-                    if (this->cy != this->config.screen_rows - 1) {
+                    if (this->cy < this->num_rows) {
                         ++this->cy;
                     }
                     break;
@@ -489,9 +491,20 @@ class Mim {
             this->editor_buffer.clear();
         }
 
+        inline void editorScroll(void) {
+            if (this->cy < this->row_off) {
+                this->row_off = this->cy;
+            }
+
+            if (this->cy >= this->row_off + this->config.screen_rows) {
+                this->row_off = this->cy - this->config.screen_rows + 1;
+            }
+        }
+
         inline void editorDrawRows(void) {
             for (int y = 0, rows = this->num_rows, maxrows = this->config.screen_rows; y < maxrows; ++y) {
-                if (y >= rows) {
+                int file_row = y + row_off;
+                if (file_row >= rows) {
                     if (rows == 0 && y == maxrows / 3) {
                         string welcome_msg = "Mim Editor -- version " + this->version;
                         int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
@@ -510,7 +523,7 @@ class Mim {
                         this->editor_buffer.append("~");
                     }
                 } else {
-                    this->editor_buffer.append(this->rows_buffer[y]);
+                    this->editor_buffer.append(this->rows_buffer[file_row]);
                 }
 
                 this->editor_buffer.append("\x1b[K");
@@ -544,10 +557,11 @@ class Mim {
         }
 
         inline void editorRefreshScreen(void) {
+            this->editorScroll();
             this->editorHideCursor();
             this->editorResetCursor();
             this->editorDrawRows();
-            this->editorMoveCursorTo(this->cx, this->cy);
+            this->editorMoveCursorTo(this->cx, (this->cy - this->row_off) + 1);
             this->editorShowCursor();
         }
 
