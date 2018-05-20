@@ -1,3 +1,5 @@
+# sudo apt-get install libncurses5-dev
+#
 DEMO=init_func
 
 all:
