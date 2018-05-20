@@ -95,6 +95,7 @@ class Mim {
                 this->config.screen_cols = ws.ws_col;
 
                 this->editorRefreshScreen();
+                this->editorRefreshBuffer();
 
                 if (this->config.verbose) {
                     printf("=> Init...\r\n");
@@ -141,6 +142,7 @@ class Mim {
 
         State editor_state;
         MimConfig config;
+        string editor_buffer;
 
         /*** terminal ***/
 
@@ -232,6 +234,7 @@ class Mim {
                     case KEY_CTRL('q'):
                         this->editor_state = Mim::State::stoped;
                         this->editorClearScreen();
+                        this->editorRefreshBuffer();
                         break;
                     default:
                         break;
@@ -242,22 +245,27 @@ class Mim {
         }
 
         /*** output ***/
+        inline void editorRefreshBuffer(void) {
+            write(STDOUT_FILENO, this->editor_buffer.c_str(), this->editor_buffer.length());
+            this->editor_buffer.clear();
+        }
+
         inline void editorDrawRows(void) {
             for (int y = 0; y < this->config.screen_rows; ++y) {
-                write(STDOUT_FILENO, "~", 1);
+                this->editor_buffer.append("~", 1);
 
                 if (y < this->config.screen_rows - 1) {
-                    write(STDOUT_FILENO, "\r\n", 2);
+                    this->editor_buffer.append("\r\n", 2);
                 }
             }
         }
 
         inline void editorResetCursor(void) {
-            write(STDOUT_FILENO, "\x1b[H", 3);  // move cursor to line 1 column 1
+            this->editor_buffer.append("\x1b[H", 3);  // move cursor to line 1 column 1
         }
 
         inline void editorClearScreen(void) {
-            write(STDOUT_FILENO, "\x1b[2J", 4); // clear whole screen
+            this->editor_buffer.append("\x1b[2J", 4); // clear whole screen
             this->editorResetCursor();
         }
 
