@@ -2,6 +2,25 @@
 
 Minimal vim-like text editor
 
+## Current Features
+
+### Command mode
+
+*   `h/j/k/l`: move left/down/up/right
+*   `0/$`: move to start/end of line
+*   `^u / ^d`: page up/down
+*   `G`: move to end of file
+*   `i`: goto insert mode
+
+### Insert mode
+
+*   `arrow` keys: move left/down/up/right
+*   `home/end` keys: move to start/end of line
+*   `page up/down` keys: page up/down
+*   `esc` key: goto command mode
+
+### Lastline mode
+
 ## Change terminal mode
 
 change mode of terminal from `canonical/cooked mode` (interact when 'enter' pressed)
