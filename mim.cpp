@@ -350,28 +350,54 @@ class Mim {
         /*** input ***/
 
         inline void editorMoveCursor(int key) {
+            string row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy] : "";
+            bool end_of_line = (this->cx >= (int)row.length());
+
             switch (key) {
                 case KEY_ARROW_LEFT:
                     if (this->cx != 0) {
                         --this->cx;
+                    } else if (this->cy > 0) {
+                        --this->cy;
+                        this->editorHomeEnd(KEY_END);
                     }
+
                     break;
                 case KEY_ARROW_RIGHT:
-                    ++this->cx;
+                    if (this->cx < (int)row.length()) {
+                        ++this->cx;
+                    } else if (end_of_line) {
+                        ++this->cy;
+                        this->cx = 0;
+                    }
+
                     break;
                 case KEY_ARROW_UP:
                     if (this->cy != 0) {
                         --this->cy;
                     }
+
+                    if (end_of_line) {
+                        this->editorHomeEnd(KEY_END);
+                    }
+
                     break;
                 case KEY_ARROW_DOWN:
                     if (this->cy < this->num_rows) {
                         ++this->cy;
                     }
+
+                    if (end_of_line) {
+                        this->editorHomeEnd(KEY_END);
+                    }
+
                     break;
                 default:
                     break;
             }
+
+            row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy] : "";
+            this->cx = min(this->cx, (int)row.length());
         }
 
         inline void editorPageUpDown(int key) {
@@ -388,8 +414,11 @@ class Mim {
                     this->cx = 0;
                     break;
                 case KEY_END:
-                    this->cx = this->config.screen_cols - 1;
-                    break;
+                    {
+                        string row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy] : "";
+                        this->cx = row.length();
+                        break;
+                    }
                 default:
                     break;
             }
@@ -416,7 +445,8 @@ class Mim {
                     this->editorMoveCursor(KEY_ARROW_RIGHT);
                     break;
                 case 'G':
-                    this->cy = (this->num_rows - 1) > 0 ? this->num_rows - 1 : 0;
+                    this->cy = this->num_rows;
+                    this->editorHomeEnd(KEY_END);
                     break;
                 case KEY_ARROW_LEFT:
                 case KEY_ARROW_RIGHT:
