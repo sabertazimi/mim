@@ -65,6 +65,7 @@ class Mim {
         void init(void) throw(MimError) {
             try {
                 this->enableRawMode();
+                this->editorClearScreen();
 
                 if (this->config.verbose) {
                     printf("=> Init...\r\n");
@@ -79,7 +80,7 @@ class Mim {
 
             while (this->editor_state == Mim::State::running) {
                 try {
-                    editorProcessKeyPress();
+                    this->editorProcessKeyPress();
                 } catch (const MimError &e) {
                     throw e;
                 }
@@ -107,6 +108,8 @@ class Mim {
         State editor_state;
         struct termios orig_termios;
         struct MimConfig config;
+
+        /*** terminal ***/
 
         void enableRawMode(void) throw(MimError) {
             if (tcgetattr(STDIN_FILENO, &orig_termios) == -1) {
@@ -149,13 +152,16 @@ class Mim {
             return ch;
         }
 
+        /*** input ***/
+
         void editorProcessKeyPress(void) throw(MimError) {
             try {
-                char ch = editorReadKey();
+                char ch = this->editorReadKey();
 
                 switch (ch) {
                     case KEY_CTRL('q'):
                         this->editor_state = Mim::State::stop;
+                        this->editorClearScreen();
                         break;
                     default:
                         break;
@@ -163,6 +169,12 @@ class Mim {
             } catch (const MimError &e) {
                 throw e;
             }
+        }
+
+        /*** output ***/
+        void editorClearScreen(void) {
+            write(STDOUT_FILENO, "\x1b[2J", 4); // clear whole screen
+            write(STDOUT_FILENO, "\x1b[H", 3);  // move cursor to line 1 column 1
         }
 };
 
