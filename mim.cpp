@@ -222,10 +222,18 @@ class Mim {
 
                         if (seq[2] == '~') {
                             switch (seq[1]) {
+                                case '1':
+                                    return KEY_HOME;
+                                case '4':
+                                    return KEY_END;
                                 case '5':
                                     return KEY_PAGE_UP;
                                 case '6':
                                     return KEY_PAGE_DOWN;
+                                case '7':
+                                    return KEY_HOME;
+                                case '8':
+                                    return KEY_END;
                             }
                         }
                     } else {
@@ -238,9 +246,20 @@ class Mim {
                                 return KEY_ARROW_RIGHT;
                             case 'D':
                                 return KEY_ARROW_LEFT;
+                            case 'H':
+                                return KEY_HOME;
+                            case 'F':
+                                return KEY_END;
                             default:
                                 return KEY_ESC;
                         }
+                    }
+                } else if (seq[0] == 'O') {
+                    switch (seq[1]) {
+                        case 'H':
+                            return KEY_HOME;
+                        case 'F':
+                            return KEY_END;
                     }
                 }
             }
@@ -295,7 +314,7 @@ class Mim {
 
         /*** input ***/
 
-        void editorMoveCursor(int key) {
+        inline void editorMoveCursor(int key) {
             switch (key) {
                 case KEY_ARROW_LEFT:
                     if (this->config.cx != 0) {
@@ -322,11 +341,24 @@ class Mim {
             }
         }
 
-        void editorPageUpDown(int key) {
+        inline void editorPageUpDown(int key) {
             int times = this->config.screen_rows;
 
             while (times--) {
                 editorMoveCursor(key == KEY_PAGE_UP ? KEY_ARROW_UP : KEY_ARROW_DOWN);
+            }
+        }
+
+        inline void editorHomeEnd(int key) {
+            switch (key) {
+                case KEY_HOME:
+                    this->config.cx = 0;
+                    break;
+                case KEY_END:
+                    this->config.cx = this->config.screen_cols - 1;
+                    break;
+                default:
+                    break;
             }
         }
 
@@ -362,6 +394,12 @@ class Mim {
                 case KEY_CTRL('d'):
                     this->editorPageUpDown(KEY_PAGE_DOWN);
                     break;
+                case '0':
+                    this->editorHomeEnd(KEY_HOME);
+                    break;
+                case '$':
+                    this->editorHomeEnd(KEY_END);
+                    break;
                 default:
                     break;
             }
@@ -384,6 +422,10 @@ class Mim {
                 case KEY_PAGE_UP:
                 case KEY_PAGE_DOWN:
                     this->editorPageUpDown(ch);
+                    break;
+                case KEY_HOME:
+                case KEY_END:
+                    this->editorHomeEnd(ch);
                     break;
                 default:
                     break;
