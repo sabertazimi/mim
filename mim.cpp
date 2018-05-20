@@ -31,6 +31,8 @@ class MimError : public exception {
 };
 
 struct MimConfig {
+    int cx;     // column number (start with 0)
+    int cy;     // row number (start with 0)
     int screen_rows;
     int screen_cols;
     bool verbose;
@@ -60,17 +62,16 @@ struct CursorPosition {
 class Mim {
     public:
         Mim(void) {
-            this->editor_state = Mim::State::stoped;
+            this->config.cx = 0;
+            this->config.cy = 0;
             this->config.verbose = true;
         }
 
         Mim(const Mim &mim) {
-            this->editor_state = Mim::State::stoped;
             this->set_config(mim.get_config());
         }
 
         Mim(const MimConfig &config) {
-            this->editor_state = Mim::State::stoped;
             this->set_config(config);
         }
 
@@ -88,14 +89,14 @@ class Mim {
 
         void init(void) throw(MimError) {
             try {
+                this->editor_state = Mim::State::stoped;
+                this->editor_mode = Mim::Mode::command;
+
                 this->enableRawMode();
 
                 struct winsize ws = this->getWindowSize();
                 this->config.screen_rows = ws.ws_row;
                 this->config.screen_cols = ws.ws_col;
-
-                this->editorRefreshScreen();
-                this->editorRefreshBuffer();
 
                 if (this->config.verbose) {
                     printf("=> Init...\r\n");
@@ -110,6 +111,8 @@ class Mim {
 
             while (this->editor_state == Mim::State::running) {
                 try {
+                    this->editorRefreshScreen();
+                    this->editorRefreshBuffer();
                     this->editorProcessKeyPress();
                 } catch (const MimError &e) {
                     throw e;
@@ -123,6 +126,8 @@ class Mim {
         }
 
         void set_config(const MimConfig &config) {
+            this->config.cx = config.cx;
+            this->config.cy = config.cy;
             this->config.verbose = config.verbose;
             this->config.orig_termios = config.orig_termios;
         }
@@ -141,6 +146,7 @@ class Mim {
         };
 
         State editor_state;
+        Mode editor_mode;
         MimConfig config;
         const string version = "0.1.0";
         string editor_buffer;
@@ -225,21 +231,89 @@ class Mim {
             return CursorPosition(row, col);
         }
 
+        /*** manipulation ***/
+
+        void closeEditor(void) {
+            this->editor_state = Mim::State::stoped;
+            this->editorClearScreen();
+            this->editorRefreshBuffer();
+        }
+
         /*** input ***/
+
+        void editorMoveCursor(char key) {
+            switch(key) {
+                case 'h':
+                    this->config.cx--;
+                    break;
+                case 'j':
+                    this->config.cy++;
+                    break;
+                case 'k':
+                    this->config.cy--;
+                    break;
+                case 'l':
+                    this->config.cx++;
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        void editorProcessKeyPressInCommandMode(char ch) {
+            switch (ch) {
+                case 'q':
+                    this->closeEditor();
+                    break;
+                case 'h':
+                case 'j':
+                case 'k':
+                case 'l':
+                    this->editorMoveCursor(ch);
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        void editorProcessKeyPressInInsertMode(char ch) {
+            switch (ch) {
+                case KEY_CTRL('q'):
+                    this->closeEditor();
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        void editorProcessKeyPressInLastlineMode(char ch) {
+            switch (ch) {
+                case KEY_CTRL('q'):
+                    this->closeEditor();
+                    break;
+                default:
+                    break;
+            }
+        }
 
         void editorProcessKeyPress(void) throw(MimError) {
             try {
                 char ch = this->editorReadKey();
 
-                switch (ch) {
-                    case KEY_CTRL('q'):
-                        this->editor_state = Mim::State::stoped;
-                        this->editorClearScreen();
-                        this->editorRefreshBuffer();
+                switch(this->editor_mode) {
+                    case Mim::Mode::command:
+                        this->editorProcessKeyPressInCommandMode(ch);
+                        break;
+                    case Mim::Mode::insert:
+                        this->editorProcessKeyPressInInsertMode(ch);
+                        break;
+                    case Mim::Mode::lastline:
+                        this->editorProcessKeyPressInLastlineMode(ch);
                         break;
                     default:
                         break;
                 }
+
             } catch (const MimError &e) {
                 throw e;
             }
@@ -291,6 +365,11 @@ class Mim {
             this->editor_buffer.append("\x1b[?25h");
         }
 
+        inline void editorMoveCursorTo(int x, int y) {
+            string buf = "\x1b[" + to_string(y + 1) + ";" + to_string(x + 1) + "H";
+            this->editor_buffer.append(buf);
+        }
+
         inline void editorClearScreen(void) {
             this->editor_buffer.append("\x1b[2J"); // clear whole screen
             this->editorResetCursor();
@@ -300,7 +379,7 @@ class Mim {
             this->editorHideCursor();
             this->editorResetCursor();
             this->editorDrawRows();
-            this->editorResetCursor();
+            this->editorMoveCursorTo(this->config.cx, this->config.cy);
             this->editorShowCursor();
         }
 };
