@@ -65,7 +65,7 @@ class Mim {
         void init(void) throw(MimError) {
             try {
                 this->enableRawMode();
-                this->editorClearScreen();
+                this->editorRefreshScreen();
 
                 if (this->config.verbose) {
                     printf("=> Init...\r\n");
@@ -172,9 +172,25 @@ class Mim {
         }
 
         /*** output ***/
-        void editorClearScreen(void) {
-            write(STDOUT_FILENO, "\x1b[2J", 4); // clear whole screen
+        inline void editorDrawRows(void) {
+            for (int y = 0; y < 24; ++y) {
+                write(STDOUT_FILENO, "~\r\n", 3);
+            }
+        }
+
+        inline void editorResetCursor(void) {
             write(STDOUT_FILENO, "\x1b[H", 3);  // move cursor to line 1 column 1
+        }
+
+        inline void editorClearScreen(void) {
+            write(STDOUT_FILENO, "\x1b[2J", 4); // clear whole screen
+            this->editorResetCursor();
+        }
+
+        inline void editorRefreshScreen(void) {
+            this->editorClearScreen();
+            this->editorDrawRows();
+            this->editorResetCursor();
         }
 };
 
