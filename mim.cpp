@@ -276,16 +276,24 @@ class Mim {
         void editorMoveCursor(int key) {
             switch(key) {
                 case KEY_ARROW_LEFT:
-                    this->config.cx--;
+                    if (this->config.cx != 0) {
+                        this->config.cx--;
+                    }
                     break;
                 case KEY_ARROW_RIGHT:
-                    this->config.cx++;
+                    if (this->config.cx != this->config.screen_cols - 1) {
+                        this->config.cx++;
+                    }
                     break;
                 case KEY_ARROW_UP:
-                    this->config.cy--;
+                    if (this->config.cy != 0) {
+                        this->config.cy--;
+                    }
                     break;
                 case KEY_ARROW_DOWN:
-                    this->config.cy++;
+                    if (this->config.cy != this->config.screen_rows - 1) {
+                        this->config.cy++;
+                    }
                     break;
                 default:
                     break;
