@@ -18,10 +18,11 @@ enum EditorKey {
     KEY_ARROW_RIGHT,
     KEY_ARROW_UP,
     KEY_ARROW_DOWN,
-    KEY_PAGE_UP,
-    KEY_PAGE_DOWN,
+    KEY_DEL,
     KEY_HOME,
-    KEY_END
+    KEY_END,
+    KEY_PAGE_UP,
+    KEY_PAGE_DOWN
 };
 
 class MimError : public exception {
@@ -224,6 +225,8 @@ class Mim {
                             switch (seq[1]) {
                                 case '1':
                                     return KEY_HOME;
+                                case '3':
+                                    return KEY_DEL;
                                 case '4':
                                     return KEY_END;
                                 case '5':
