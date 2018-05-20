@@ -19,3 +19,7 @@ to `raw mode` (interact immediately)
 \x1b[x;yH  move cursor to line x column y
 ```
 
+## Ncurses library
+
+http://www.ibiblio.org/pub/Linux/docs/HOWTO/other-formats/pdf/NCURSES-Programming-HOWTO.pdf
+
