@@ -107,6 +107,8 @@ class Mim {
                 this->row_off = 0;
                 this->num_rows = 0;
                 this->rows_buffer.clear();
+                this->editor_buffer.clear();
+                this->command_buffer.clear();
 
                 this->enableRawMode();
 
@@ -180,6 +182,8 @@ class Mim {
         int row_off;
         vector<string> rows_buffer;
         string editor_buffer;
+
+        string command_buffer;
 
         /*** terminal ***/
 
@@ -402,6 +406,9 @@ class Mim {
                 case 'l':
                     this->editorMoveCursor(KEY_ARROW_RIGHT);
                     break;
+                case 'G':
+                    this->cy = (this->num_rows - 1) > 0 ? this->num_rows - 1 : 0;
+                    break;
                 case KEY_ARROW_LEFT:
                 case KEY_ARROW_RIGHT:
                 case KEY_ARROW_UP:
@@ -561,7 +568,7 @@ class Mim {
             this->editorHideCursor();
             this->editorResetCursor();
             this->editorDrawRows();
-            this->editorMoveCursorTo(this->cx, (this->cy - this->row_off) + 1);
+            this->editorMoveCursorTo(this->cx, this->cy - this->row_off);
             this->editorShowCursor();
         }
 
