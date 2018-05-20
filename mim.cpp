@@ -552,15 +552,10 @@ class Mim {
                     }
                 } else {
                     int length = this->rows_buffer[file_row].length() - this->col_off;
-                    length = max(length, 0);
-                    length = min(length, this->config.screen_cols);
 
-                    try {
+                    if (length > 0) {
+                        length = min(length, this->config.screen_cols);
                         this->editor_buffer.append(this->rows_buffer[file_row].substr(this->col_off, length));
-                    } catch (const out_of_range &e) {
-                        if (this->config.verbose) {
-                            fprintf(log, "col_off: %d, length: %d\r\n", this->col_off, length);
-                        }
                     }
                 }
 
