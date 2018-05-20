@@ -142,6 +142,7 @@ class Mim {
 
         State editor_state;
         MimConfig config;
+        const string version = "0.1.0";
         string editor_buffer;
 
         /*** terminal ***/
@@ -251,28 +252,56 @@ class Mim {
         }
 
         inline void editorDrawRows(void) {
-            for (int y = 0; y < this->config.screen_rows; ++y) {
-                this->editor_buffer.append("~", 1);
+            for (int y = 0, rows = this->config.screen_rows; y < rows; ++y) {
+                if (y == rows / 3) {
+                    string welcome_msg = "Mim Editor -- version " + this->version;
+                    int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
 
-                if (y < this->config.screen_rows - 1) {
-                    this->editor_buffer.append("\r\n", 2);
+                    if (padding) {
+                        this->editor_buffer.append("~");
+                        --padding;
+                    }
+
+                    while (padding--) {
+                        this->editor_buffer.append(" ");
+                    }
+
+                    this->editor_buffer.append(welcome_msg);
+                } else {
+                    this->editor_buffer.append("~");
+                }
+
+                this->editor_buffer.append("\x1b[K");
+
+                if (y < rows - 1) {
+                    this->editor_buffer.append("\r\n");
                 }
             }
         }
 
         inline void editorResetCursor(void) {
-            this->editor_buffer.append("\x1b[H", 3);  // move cursor to line 1 column 1
+            this->editor_buffer.append("\x1b[H");  // move cursor to line 1 column 1
+        }
+
+        inline void editorHideCursor(void) {
+            this->editor_buffer.append("\x1b[?25l");
+        }
+
+        inline void editorShowCursor(void) {
+            this->editor_buffer.append("\x1b[?25h");
         }
 
         inline void editorClearScreen(void) {
-            this->editor_buffer.append("\x1b[2J", 4); // clear whole screen
+            this->editor_buffer.append("\x1b[2J"); // clear whole screen
             this->editorResetCursor();
         }
 
         inline void editorRefreshScreen(void) {
-            this->editorClearScreen();
+            this->editorHideCursor();
+            this->editorResetCursor();
             this->editorDrawRows();
             this->editorResetCursor();
+            this->editorShowCursor();
         }
 };
 
