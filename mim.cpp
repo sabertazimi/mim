@@ -61,14 +61,46 @@ struct CursorPosition {
         this->col = 0;
     }
 
+    CursorPosition(const CursorPosition &curpos) {
+        this->row = curpos.row;
+        this->col = curpos.col;
+    }
+
     CursorPosition(int row, int col) {
         this->row = row;
         this->col = col;
     }
+};
 
-    CursorPosition(const CursorPosition &curpos) {
-        this->row = curpos.row;
-        this->col = curpos.col;
+struct RowBuffer {
+    string raw;
+    string render;
+
+    RowBuffer(void) {
+        this->raw = "";
+        this->render = this->renderFromRaw(this->raw);
+    }
+
+    RowBuffer(const RowBuffer &buf) {
+        this->raw = buf.raw;
+        this->render = this->renderFromRaw(this->raw);
+    }
+
+    RowBuffer(const string &raw) {
+        this->raw = raw;
+        this->render = this->renderFromRaw(this->raw);
+    }
+
+    RowBuffer(const MimConfig &config) {
+        if (config.verbose) {
+            this->raw = "";
+            this->render = this->renderFromRaw(this->raw) + " verbose";
+        }
+    }
+
+    const string renderFromRaw(const string &raw) {
+        // TODO
+        return string(raw);
     }
 };
 
@@ -189,8 +221,7 @@ class Mim {
         int num_rows;
         int row_off;
         int col_off;
-        vector<string> rows_buffer;
-        vector<string> render_buffer;
+        vector<RowBuffer> rows_buffer;
         string screen_buffer;
 
         string command_buffer;
@@ -351,7 +382,7 @@ class Mim {
         /*** input ***/
 
         inline void editorMoveCursor(const int &key) {
-            string row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy] : "";
+            string row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy].raw : "";
             bool end_of_line = (this->cx >= (int)row.length());
 
             switch (key) {
@@ -397,7 +428,7 @@ class Mim {
                     break;
             }
 
-            row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy] : "";
+            row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy].raw : "";
             this->cx = min(this->cx, (int)row.length());
         }
 
@@ -416,7 +447,7 @@ class Mim {
                     break;
                 case KEY_END:
                     {
-                        string row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy] : "";
+                        string row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy].raw : "";
                         this->cx = row.length();
                         break;
                     }
@@ -575,18 +606,21 @@ class Mim {
         inline void editorDrawRows(void) {
             for (int y = 0, rows = this->num_rows, maxrows = this->config.screen_rows; y < maxrows; ++y) {
                 int file_row = y + row_off;
+
                 if (file_row >= rows) {
+                    // draw '~' placeholder or version
                     if (rows == 0 && y == maxrows / 3) {
                         this->editorShowVersion();
                     } else {
                         this->screen_buffer.append("~");
                     }
                 } else {
-                    int length = this->rows_buffer[file_row].length() - this->col_off;
+                    // draw text data from files
+                    int length = this->rows_buffer[file_row].render.length() - this->col_off;
 
                     if (length > 0) {
                         length = min(length, this->config.screen_cols);
-                        this->screen_buffer.append(this->rows_buffer[file_row].substr(this->col_off, length));
+                        this->screen_buffer.append(this->rows_buffer[file_row].render.substr(this->col_off, length));
                     }
                 }
 
@@ -630,13 +664,8 @@ class Mim {
         }
 
         /*** row operations ***/
-        void editorUpdateRow(const string &data) {
-            this->render_buffer.push_back(data);
-        }
-
         void editorAppendRow(const string &line) {
-            this->rows_buffer.push_back(line);
-            this->editorUpdateRow(line);
+            this->rows_buffer.push_back(RowBuffer(line));
             ++this->num_rows;
         }
 
