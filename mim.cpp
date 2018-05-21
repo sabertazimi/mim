@@ -140,6 +140,7 @@ class Mim {
                 this->screen_buffer.clear();
                 this->command_buffer.clear();
                 this->dirty_flag = false;
+                this->force_quit = false;
 
                 this->updateLastlineBuffer("");
                 this->editor_filename = "mim_temp";
@@ -233,6 +234,7 @@ class Mim {
         time_t lastline_time;   // lastline update timer
 
         bool dirty_flag;
+        bool force_quit;
 
         string editor_filename;
         fstream editor_file;
@@ -384,9 +386,14 @@ class Mim {
         /*** manipulation ***/
 
         void closeEditor(void) {
-            this->editor_state = Mim::MimState::stoped;
-            this->clearScreen();
-            this->refreshBuffer();
+            if (this->dirty_flag && !this->force_quit) {
+                this->updateLastlineBuffer("[WARN] File has unsaved changes (Press more times to quit)");
+                this->force_quit = true;
+            } else {
+                this->editor_state = Mim::MimState::stoped;
+                this->clearScreen();
+                this->refreshBuffer();
+            }
         }
 
         /*** input ***/
