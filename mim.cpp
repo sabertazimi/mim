@@ -96,7 +96,6 @@ struct RowBuffer {
         this->raw = raw;
         this->render = this->raw;
     }
-
 };
 
 class Mim {
@@ -551,6 +550,7 @@ class Mim {
                     this->keyHomeEnd(ch);
                     break;
                 default:
+                    this->insertChar(ch);
                     break;
             }
         }
@@ -781,6 +781,30 @@ class Mim {
             this->rows_buffer[this->num_rows].render = this->renderFromRawWithConfig(line);
             ++this->num_rows;
         }
+
+        void insertCharToRow(int num_row, int at, int ch) {
+            RowBuffer row = this->rows_buffer[num_row];
+
+            if (at < 0 || at > (int)row.raw.length()) {
+                at = row.raw.length();
+            }
+
+            row.raw = row.raw.substr(0, at) + string(1, ch) + row.raw.substr(at);
+            row.render = this->renderFromRawWithConfig(row.raw);
+            this->rows_buffer[num_row] = row;
+        }
+
+        /*** editor operations ***/
+
+        void insertChar(int ch) {
+            if (this->cy >= this->num_rows) {
+                this->appendRow("");
+            }
+
+            this->insertCharToRow(this->cy, this->cx, ch);
+            ++this->cx;
+        }
+
 
         /*** files ***/
         void open(const char *filename) {
