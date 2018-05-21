@@ -4,7 +4,7 @@ Minimal vim-like text editor
 
 ## Current Features
 
-### Command mode
+### Command Mode
 
 *   `h/j/k/l`: move left/down/up/right
 *   `0/$`: move to start/end of line
@@ -14,7 +14,7 @@ Minimal vim-like text editor
 *   `\b`: move left
 *   `\r`: move down
 
-### Insert mode
+### Insert Mode
 
 *   `arrow` keys: move left/down/up/right
 *   `home/end` keys: move to start/end of line
@@ -22,15 +22,22 @@ Minimal vim-like text editor
 *   `esc` key: goto command mode
 *   `^s`: save to file
 
-### Lastline mode
+### Lastline Mode
 
 *   `save as` file
 
-### Status bar
+### Status Bar
 
 *   filename
 *   total lines number
 *   current line numebr
+
+## Future Features
+
+*   search bar
+*   syntax highlight
+*   show line number
+*   more command/insert/lastline operations
 
 ## Change terminal mode
 
