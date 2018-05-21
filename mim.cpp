@@ -109,7 +109,7 @@ class Mim {
                 this->col_off = 0;
                 this->num_rows = 0;
                 this->rows_buffer.clear();
-                this->editor_buffer.clear();
+                this->screen_buffer.clear();
                 this->command_buffer.clear();
 
                 this->enableRawMode();
@@ -190,7 +190,8 @@ class Mim {
         int row_off;
         int col_off;
         vector<string> rows_buffer;
-        string editor_buffer;
+        vector<string> render_buffer;
+        string screen_buffer;
 
         string command_buffer;
 
@@ -302,7 +303,7 @@ class Mim {
             return ch;
         }
 
-        const struct winsize getWindowSize() throw(MimError) {
+        const struct winsize getWindowSize(void) throw(MimError) {
             struct winsize ws;
 
             if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
@@ -349,7 +350,7 @@ class Mim {
 
         /*** input ***/
 
-        inline void editorMoveCursor(int key) {
+        inline void editorMoveCursor(const int &key) {
             string row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy] : "";
             bool end_of_line = (this->cx >= (int)row.length());
 
@@ -400,7 +401,7 @@ class Mim {
             this->cx = min(this->cx, (int)row.length());
         }
 
-        inline void editorPageUpDown(int key) {
+        inline void editorPageUpDown(const int &key) {
             int times = this->config.screen_rows;
 
             while (times--) {
@@ -408,7 +409,7 @@ class Mim {
             }
         }
 
-        inline void editorHomeEnd(int key) {
+        inline void editorHomeEnd(const int &key) {
             switch (key) {
                 case KEY_HOME:
                     this->cx = 0;
@@ -424,7 +425,7 @@ class Mim {
             }
         }
 
-        void editorProcessKeyPressInCommandMode(int ch) {
+        void editorProcessKeyPressInCommandMode(const int &ch) {
             switch (ch) {
                 case 'i':
                     this->editor_mode = Mim::MimMode::insert;
@@ -471,7 +472,7 @@ class Mim {
             }
         }
 
-        void editorProcessKeyPressInInsertMode(int ch) {
+        void editorProcessKeyPressInInsertMode(const int &ch) {
             switch (ch) {
                 case KEY_ESC:
                     this->editor_mode = Mim::MimMode::command;
@@ -498,7 +499,7 @@ class Mim {
             }
         }
 
-        void editorProcessKeyPressInLastlineMode(int ch) {
+        void editorProcessKeyPressInLastlineMode(const int &ch) {
             switch (ch) {
                 case KEY_CTRL('q'):
                     this->closeEditor();
@@ -533,8 +534,8 @@ class Mim {
 
         /*** output ***/
         inline void editorRefreshBuffer(void) {
-            write(STDOUT_FILENO, this->editor_buffer.c_str(), this->editor_buffer.length());
-            this->editor_buffer.clear();
+            write(STDOUT_FILENO, this->screen_buffer.c_str(), this->screen_buffer.length());
+            this->screen_buffer.clear();
         }
 
         inline void editorScroll(void) {
@@ -560,15 +561,15 @@ class Mim {
             int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
 
             if (padding) {
-                this->editor_buffer.append("~");
+                this->screen_buffer.append("~");
                 --padding;
             }
 
             while (padding--) {
-                this->editor_buffer.append(" ");
+                this->screen_buffer.append(" ");
             }
 
-            this->editor_buffer.append(welcome_msg);
+            this->screen_buffer.append(welcome_msg);
         }
 
         inline void editorDrawRows(void) {
@@ -578,44 +579,44 @@ class Mim {
                     if (rows == 0 && y == maxrows / 3) {
                         this->editorShowVersion();
                     } else {
-                        this->editor_buffer.append("~");
+                        this->screen_buffer.append("~");
                     }
                 } else {
                     int length = this->rows_buffer[file_row].length() - this->col_off;
 
                     if (length > 0) {
                         length = min(length, this->config.screen_cols);
-                        this->editor_buffer.append(this->rows_buffer[file_row].substr(this->col_off, length));
+                        this->screen_buffer.append(this->rows_buffer[file_row].substr(this->col_off, length));
                     }
                 }
 
-                this->editor_buffer.append("\x1b[K");
+                this->screen_buffer.append("\x1b[K");
 
                 if (y < maxrows - 1) {
-                    this->editor_buffer.append("\r\n");
+                    this->screen_buffer.append("\r\n");
                 }
             }
         }
 
         inline void editorResetCursor(void) {
-            this->editor_buffer.append("\x1b[H");  // move cursor to line 1 column 1
+            this->screen_buffer.append("\x1b[H");  // move cursor to line 1 column 1
         }
 
         inline void editorHideCursor(void) {
-            this->editor_buffer.append("\x1b[?25l");
+            this->screen_buffer.append("\x1b[?25l");
         }
 
         inline void editorShowCursor(void) {
-            this->editor_buffer.append("\x1b[?25h");
+            this->screen_buffer.append("\x1b[?25h");
         }
 
         inline void editorMoveCursorTo(int x, int y) {
             string buf = "\x1b[" + to_string(y + 1) + ";" + to_string(x + 1) + "H";
-            this->editor_buffer.append(buf);
+            this->screen_buffer.append(buf);
         }
 
         inline void editorClearScreen(void) {
-            this->editor_buffer.append("\x1b[2J"); // clear whole screen
+            this->screen_buffer.append("\x1b[2J"); // clear whole screen
             this->editorResetCursor();
         }
 
@@ -629,8 +630,13 @@ class Mim {
         }
 
         /*** row operations ***/
+        void editorUpdateRow(const string &data) {
+            this->render_buffer.push_back(data);
+        }
+
         void editorAppendRow(const string &line) {
             this->rows_buffer.push_back(line);
+            this->editorUpdateRow(line);
             ++this->num_rows;
         }
 
