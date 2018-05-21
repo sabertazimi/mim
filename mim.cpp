@@ -139,7 +139,7 @@ class Mim {
                 this->enableRawMode();
 
                 struct winsize ws = this->getWindowSize();
-                this->config.screen_rows = ws.ws_row;
+                this->config.screen_rows = ws.ws_row - 2;   // reserve two lines for status bar and lastline mode
                 this->config.screen_cols = ws.ws_col;
 
                 if (this->config.verbose) {
@@ -637,10 +637,7 @@ class Mim {
                 }
 
                 this->screen_buffer.append("\x1b[K");
-
-                if (y < maxrows - 1) {
-                    this->screen_buffer.append("\r\n");
-                }
+                this->screen_buffer.append("\r\n");
             }
         }
 
