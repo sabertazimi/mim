@@ -915,10 +915,17 @@ class Mim {
         void insertNewline(void) {
             if (this->cx == 0) {
                 this->insertRow(this->cy, "");
-                ++this->cy;
             } else {
+                string row_string = this->rows_buffer[this->cy].raw;
+                this->rows_buffer[this->cy].raw = row_string.substr(0, this->cx);
+                this->rows_buffer[this->cy].render = this->renderFromRawWithConfig(this->rows_buffer[this->cy].raw);
 
+                string right_string = row_string.substr(this->cx);
+                this->insertRow(this->cy + 1, right_string);
             }
+
+            this->cx = 0;
+            ++this->cy;
         }
 
         /*** files ***/
