@@ -54,6 +54,7 @@ struct MimConfig {
     int screen_rows;
     int screen_cols;
     int tabs_width;
+    bool set_num;
     bool verbose;
     struct termios orig_termios;
 };
@@ -102,6 +103,7 @@ class Mim {
     public:
         Mim(void) {
             this->config.tabs_width = 4;
+            this->config.set_num = true;
             this->config.verbose = true;
         }
 
@@ -133,6 +135,7 @@ class Mim {
                 this->cx = 0;
                 this->cy = 0;
                 this->rx = 0;
+                this->rx_base = 0;
                 this->row_off = 0;
                 this->col_off = 0;
                 this->num_rows = 0;
@@ -200,6 +203,7 @@ class Mim {
             this->config.screen_rows = config.screen_rows;
             this->config.screen_cols = config.screen_cols;
             this->config.tabs_width = config.tabs_width;
+            this->config.set_num = config.set_num;
             this->config.verbose = config.verbose;
             this->config.orig_termios = config.orig_termios;
         }
@@ -222,9 +226,10 @@ class Mim {
         MimConfig config;
         const string version = "0.1.0";
 
-        int cx;     // column number in the file (start with 0) (not cursor position)
-        int cy;     // row number in the file (start with 0) (not cursor position)
-        int rx;     // rendered column number
+        int cx;      // column number in the file (start with 0) (not cursor position)
+        int cy;      // row number in the file (start with 0) (not cursor position)
+        int rx;      // rendered column number
+        int rx_base; // change according to config.set_num
 
         int num_rows;
         int row_off;
@@ -270,6 +275,20 @@ class Mim {
         void disableRawMode(void) throw(MimError) {
             if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &(this->config.orig_termios)) == -1) {
                 throw MimError("Set terminal mode failed.");
+            }
+        }
+
+        void updateCursorBase(void) {
+            if (this->config.set_num) {
+                int num_rows = this->num_rows;
+                this->rx_base = 0;
+
+                do {
+                    ++this->rx_base;
+                    num_rows /= 10;
+                } while (num_rows);
+
+                ++this->rx_base; // for " " placeholder after line number
             }
         }
 
@@ -681,8 +700,9 @@ class Mim {
         }
 
         inline void scroll(void) {
-            this->rx = 0;
+            this->rx = this->rx_base;
 
+            // get rx from cx
             if (this->cy < this->num_rows) {
                 this->rx = cx2rx(this->rows_buffer[this->cy].raw, this->cx);
             }
@@ -724,9 +744,31 @@ class Mim {
             this->screen_buffer.append(welcome_msg);
         }
 
+        inline void drawLineNumber(int file_row) {
+            string file_row_string = to_string(file_row + 1);
+
+            this->screen_buffer.append("\x1b[30;47m");
+
+            if (this->cy == file_row) {
+                this->screen_buffer.append("\x1b[33;40m");
+            }
+
+            for (int length = (int)file_row_string.length(); length < (this->rx_base - 1); ++length) {
+                this->screen_buffer.append(" ");
+            }
+
+            this->screen_buffer.append(file_row_string);
+            this->screen_buffer.append(" ");
+            this->screen_buffer.append("\x1b[m");
+        }
+
         inline void drawRows(void) {
             for (int y = 0, rows = this->num_rows, maxrows = this->config.screen_rows; y < maxrows; ++y) {
                 int file_row = y + row_off;
+
+                if (this->config.set_num) {
+                    this->drawLineNumber(file_row);
+                }
 
                 if (file_row >= rows) {
                     // draw '~' placeholder or version
@@ -834,6 +876,7 @@ class Mim {
         }
 
         inline void refreshScreen(void) {
+            this->updateCursorBase();
             this->scroll();
             this->hideCursor();
             this->resetCursor();
@@ -846,7 +889,7 @@ class Mim {
 
         /*** row operations ***/
         int cx2rx(const string &raw, int cx) {
-            int rx = 0;
+            int rx = this->rx_base;
 
             for (int i = 0; i < cx; ++i) {
                 if (raw[i] == '\t') {

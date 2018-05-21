@@ -35,6 +35,11 @@ Minimal vim-like text editor
 *   total lines number
 *   current line numebr
 
+### Config
+
+*   `tabs_width`: default 4
+*   `set_num`: default on
+
 ## Future Features
 
 *   search bar
