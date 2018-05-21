@@ -48,6 +48,7 @@ class MimError : public exception {
 struct MimConfig {
     int screen_rows;
     int screen_cols;
+    int tabs_width;
     bool verbose;
     struct termios orig_termios;
 };
@@ -78,35 +79,25 @@ struct RowBuffer {
 
     RowBuffer(void) {
         this->raw = "";
-        this->render = this->renderFromRaw(this->raw);
+        this->render = this->raw;
     }
 
     RowBuffer(const RowBuffer &buf) {
         this->raw = buf.raw;
-        this->render = this->renderFromRaw(this->raw);
+        this->render = buf.render;
     }
 
     RowBuffer(const string &raw) {
         this->raw = raw;
-        this->render = this->renderFromRaw(this->raw);
+        this->render = this->raw;
     }
 
-    RowBuffer(const MimConfig &config) {
-        if (config.verbose) {
-            this->raw = "";
-            this->render = this->renderFromRaw(this->raw) + " verbose";
-        }
-    }
-
-    const string renderFromRaw(const string &raw) {
-        // TODO
-        return string(raw);
-    }
 };
 
 class Mim {
     public:
         Mim(void) {
+            this->config.tabs_width = 4;
             this->config.verbose = true;
         }
 
@@ -137,6 +128,7 @@ class Mim {
                 this->editor_mode = Mim::MimMode::command;
                 this->cx = 0;
                 this->cy = 0;
+                this->rx = 0;
                 this->row_off = 0;
                 this->col_off = 0;
                 this->num_rows = 0;
@@ -169,9 +161,9 @@ class Mim {
 
             while (this->editor_state == Mim::MimState::running) {
                 try {
-                    this->editorRefreshScreen();
-                    this->editorRefreshBuffer();
-                    this->editorProcessKeyPress();
+                    this->refreshScreen();
+                    this->refreshBuffer();
+                    this->processKeyPress();
                 } catch (const MimError &e) {
                     throw e;
                 }
@@ -180,7 +172,7 @@ class Mim {
 
         void openFile(const char *filename) throw(MimError) {
             try {
-                this->editorOpen(filename);
+                this->open(filename);
             } catch (const MimError &e) {
                 throw e;
             }
@@ -194,6 +186,7 @@ class Mim {
         void set_config(const MimConfig &config) {
             this->config.screen_rows = config.screen_rows;
             this->config.screen_cols = config.screen_cols;
+            this->config.tabs_width = config.tabs_width;
             this->config.verbose = config.verbose;
             this->config.orig_termios = config.orig_termios;
         }
@@ -218,6 +211,7 @@ class Mim {
 
         int cx;     // column number in the file (start with 0) (not cursor position)
         int cy;     // row number in the file (start with 0) (not cursor position)
+        int rx;     // rendered column number
         int num_rows;
         int row_off;
         int col_off;
@@ -258,7 +252,7 @@ class Mim {
             }
         }
 
-        int editorReadKey(void) throw(MimError) {
+        int readKey(void) throw(MimError) {
             int nread;
             char ch;
 
@@ -375,13 +369,13 @@ class Mim {
 
         void closeEditor(void) {
             this->editor_state = Mim::MimState::stoped;
-            this->editorClearScreen();
-            this->editorRefreshBuffer();
+            this->clearScreen();
+            this->refreshBuffer();
         }
 
         /*** input ***/
 
-        inline void editorMoveCursor(const int &key) {
+        inline void keyMoveCursor(const int &key) {
             string row = (this->cy < this->num_rows) ? this->rows_buffer[this->cy].raw : "";
             bool end_of_line = (this->cx >= (int)row.length());
 
@@ -391,14 +385,14 @@ class Mim {
                         --this->cx;
                     } else if (this->cy > 0) {
                         --this->cy;
-                        this->editorHomeEnd(KEY_END);
+                        this->keyHomeEnd(KEY_END);
                     }
 
                     break;
                 case KEY_ARROW_RIGHT:
                     if (this->cx < (int)row.length()) {
                         ++this->cx;
-                    } else if (end_of_line) {
+                    } else if (end_of_line && this->cy < this->num_rows) {
                         ++this->cy;
                         this->cx = 0;
                     }
@@ -410,7 +404,7 @@ class Mim {
                     }
 
                     if (end_of_line) {
-                        this->editorHomeEnd(KEY_END);
+                        this->keyHomeEnd(KEY_END);
                     }
 
                     break;
@@ -420,7 +414,7 @@ class Mim {
                     }
 
                     if (end_of_line) {
-                        this->editorHomeEnd(KEY_END);
+                        this->keyHomeEnd(KEY_END);
                     }
 
                     break;
@@ -432,15 +426,15 @@ class Mim {
             this->cx = min(this->cx, (int)row.length());
         }
 
-        inline void editorPageUpDown(const int &key) {
+        inline void keyPageUpDown(const int &key) {
             int times = this->config.screen_rows;
 
             while (times--) {
-                editorMoveCursor(key == KEY_PAGE_UP ? KEY_ARROW_UP : KEY_ARROW_DOWN);
+                keyMoveCursor(key == KEY_PAGE_UP ? KEY_ARROW_UP : KEY_ARROW_DOWN);
             }
         }
 
-        inline void editorHomeEnd(const int &key) {
+        inline void keyHomeEnd(const int &key) {
             switch (key) {
                 case KEY_HOME:
                     this->cx = 0;
@@ -456,7 +450,7 @@ class Mim {
             }
         }
 
-        void editorProcessKeyPressInCommandMode(const int &ch) {
+        void processKeyPressInCommandMode(const int &ch) {
             switch (ch) {
                 case 'i':
                     this->editor_mode = Mim::MimMode::insert;
@@ -465,45 +459,45 @@ class Mim {
                     this->closeEditor();
                     break;
                 case 'h':
-                    this->editorMoveCursor(KEY_ARROW_LEFT);
+                    this->keyMoveCursor(KEY_ARROW_LEFT);
                     break;
                 case 'j':
-                    this->editorMoveCursor(KEY_ARROW_DOWN);
+                    this->keyMoveCursor(KEY_ARROW_DOWN);
                     break;
                 case 'k':
-                    this->editorMoveCursor(KEY_ARROW_UP);
+                    this->keyMoveCursor(KEY_ARROW_UP);
                     break;
                 case 'l':
-                    this->editorMoveCursor(KEY_ARROW_RIGHT);
+                    this->keyMoveCursor(KEY_ARROW_RIGHT);
                     break;
                 case 'G':
                     this->cy = this->num_rows;
-                    this->editorHomeEnd(KEY_END);
+                    this->keyHomeEnd(KEY_END);
                     break;
                 case KEY_ARROW_LEFT:
                 case KEY_ARROW_RIGHT:
                 case KEY_ARROW_UP:
                 case KEY_ARROW_DOWN:
-                    this->editorMoveCursor(ch);
+                    this->keyMoveCursor(ch);
                     break;
                 case KEY_CTRL('u'):
-                    this->editorPageUpDown(KEY_PAGE_UP);
+                    this->keyPageUpDown(KEY_PAGE_UP);
                     break;
                 case KEY_CTRL('d'):
-                    this->editorPageUpDown(KEY_PAGE_DOWN);
+                    this->keyPageUpDown(KEY_PAGE_DOWN);
                     break;
                 case '0':
-                    this->editorHomeEnd(KEY_HOME);
+                    this->keyHomeEnd(KEY_HOME);
                     break;
                 case '$':
-                    this->editorHomeEnd(KEY_END);
+                    this->keyHomeEnd(KEY_END);
                     break;
                 default:
                     break;
             }
         }
 
-        void editorProcessKeyPressInInsertMode(const int &ch) {
+        void processKeyPressInInsertMode(const int &ch) {
             switch (ch) {
                 case KEY_ESC:
                     this->editor_mode = Mim::MimMode::command;
@@ -515,22 +509,22 @@ class Mim {
                 case KEY_ARROW_RIGHT:
                 case KEY_ARROW_UP:
                 case KEY_ARROW_DOWN:
-                    this->editorMoveCursor(ch);
+                    this->keyMoveCursor(ch);
                     break;
                 case KEY_PAGE_UP:
                 case KEY_PAGE_DOWN:
-                    this->editorPageUpDown(ch);
+                    this->keyPageUpDown(ch);
                     break;
                 case KEY_HOME:
                 case KEY_END:
-                    this->editorHomeEnd(ch);
+                    this->keyHomeEnd(ch);
                     break;
                 default:
                     break;
             }
         }
 
-        void editorProcessKeyPressInLastlineMode(const int &ch) {
+        void processKeyPressInLastlineMode(const int &ch) {
             switch (ch) {
                 case KEY_CTRL('q'):
                     this->closeEditor();
@@ -540,19 +534,19 @@ class Mim {
             }
         }
 
-        void editorProcessKeyPress(void) throw(MimError) {
+        void processKeyPress(void) throw(MimError) {
             try {
-                int ch = this->editorReadKey();
+                int ch = this->readKey();
 
                 switch (this->editor_mode) {
                     case Mim::MimMode::command:
-                        this->editorProcessKeyPressInCommandMode(ch);
+                        this->processKeyPressInCommandMode(ch);
                         break;
                     case Mim::MimMode::insert:
-                        this->editorProcessKeyPressInInsertMode(ch);
+                        this->processKeyPressInInsertMode(ch);
                         break;
                     case Mim::MimMode::lastline:
-                        this->editorProcessKeyPressInLastlineMode(ch);
+                        this->processKeyPressInLastlineMode(ch);
                         break;
                     default:
                         break;
@@ -564,12 +558,18 @@ class Mim {
         }
 
         /*** output ***/
-        inline void editorRefreshBuffer(void) {
+        inline void refreshBuffer(void) {
             write(STDOUT_FILENO, this->screen_buffer.c_str(), this->screen_buffer.length());
             this->screen_buffer.clear();
         }
 
-        inline void editorScroll(void) {
+        inline void scroll(void) {
+            this->rx = 0;
+
+            if (this->cy < this->num_rows) {
+                this->rx = cx2rx(this->rows_buffer[this->cy].raw, this->cx);
+            }
+
             if (this->cy < this->row_off) {
                 this->row_off = this->cy;
             }
@@ -578,16 +578,16 @@ class Mim {
                 this->row_off = this->cy - this->config.screen_rows + 1;
             }
 
-            if (this->cx < this->col_off) {
-                this->col_off = this->cx;
+            if (this->rx < this->col_off) {
+                this->col_off = this->rx;
             }
 
-            if (this->cx >= this->col_off + this->config.screen_cols) {
-                this->col_off = this->cx - this->config.screen_cols + 1;
+            if (this->rx >= this->col_off + this->config.screen_cols) {
+                this->col_off = this->rx - this->config.screen_cols + 1;
             }
         }
 
-        inline void editorShowVersion(void) {
+        inline void showVersion(void) {
             string welcome_msg = "Mim Editor -- version " + this->version;
             int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
 
@@ -603,14 +603,14 @@ class Mim {
             this->screen_buffer.append(welcome_msg);
         }
 
-        inline void editorDrawRows(void) {
+        inline void drawRows(void) {
             for (int y = 0, rows = this->num_rows, maxrows = this->config.screen_rows; y < maxrows; ++y) {
                 int file_row = y + row_off;
 
                 if (file_row >= rows) {
                     // draw '~' placeholder or version
                     if (rows == 0 && y == maxrows / 3) {
-                        this->editorShowVersion();
+                        this->showVersion();
                     } else {
                         this->screen_buffer.append("~");
                     }
@@ -632,45 +632,78 @@ class Mim {
             }
         }
 
-        inline void editorResetCursor(void) {
+        inline void resetCursor(void) {
             this->screen_buffer.append("\x1b[H");  // move cursor to line 1 column 1
         }
 
-        inline void editorHideCursor(void) {
+        inline void hideCursor(void) {
             this->screen_buffer.append("\x1b[?25l");
         }
 
-        inline void editorShowCursor(void) {
+        inline void showCursor(void) {
             this->screen_buffer.append("\x1b[?25h");
         }
 
-        inline void editorMoveCursorTo(int x, int y) {
+        inline void moveCursorTo(int x, int y) {
             string buf = "\x1b[" + to_string(y + 1) + ";" + to_string(x + 1) + "H";
             this->screen_buffer.append(buf);
         }
 
-        inline void editorClearScreen(void) {
+        inline void clearScreen(void) {
             this->screen_buffer.append("\x1b[2J"); // clear whole screen
-            this->editorResetCursor();
+            this->resetCursor();
         }
 
-        inline void editorRefreshScreen(void) {
-            this->editorScroll();
-            this->editorHideCursor();
-            this->editorResetCursor();
-            this->editorDrawRows();
-            this->editorMoveCursorTo(this->cx - this->col_off, this->cy - this->row_off);
-            this->editorShowCursor();
+        inline void refreshScreen(void) {
+            this->scroll();
+            this->hideCursor();
+            this->resetCursor();
+            this->drawRows();
+            this->moveCursorTo(this->rx - this->col_off, this->cy - this->row_off);
+            this->showCursor();
         }
 
         /*** row operations ***/
-        void editorAppendRow(const string &line) {
+        int cx2rx(const string &raw, int cx) {
+            int rx = 0;
+
+            for (int i = 0; i < cx; ++i) {
+                if (raw[i] == '\t') {
+                    rx += ((this->config.tabs_width - 1) - (rx % this->config.tabs_width));
+                }
+
+                ++rx;
+            }
+
+            return rx;
+        }
+
+        const string renderFromRawWithConfig(const string &raw) {
+            string ret = "";
+
+            for (int i = 0, len = (int)raw.length(); i < len; ++i) {
+                if (raw[i] == '\t') {
+                    ret.append(" ");
+
+                    while (ret.length() % (this->config.tabs_width) != 0) {
+                        ret.append(" ");
+                    }
+                } else {
+                    ret.append(1, raw[i]);
+                }
+            }
+
+            return ret;
+        }
+
+        void appendRow(const string &line) {
             this->rows_buffer.push_back(RowBuffer(line));
+            this->rows_buffer[this->num_rows].render = this->renderFromRawWithConfig(line);
             ++this->num_rows;
         }
 
         /*** files ***/
-        void editorOpen(const char *filename) {
+        void open(const char *filename) {
             fstream fs;
             fs.open(filename, fstream::in | fstream::out);
 
@@ -685,7 +718,7 @@ class Mim {
             string line;
 
             while (getline(fs, line)) {
-                this->editorAppendRow(line);
+                this->appendRow(line);
             }
 
             fs.close();
