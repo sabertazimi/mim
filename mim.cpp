@@ -139,6 +139,7 @@ class Mim {
                 this->rows_buffer.clear();
                 this->screen_buffer.clear();
                 this->command_buffer.clear();
+                this->dirty_flag = false;
 
                 this->updateLastlineBuffer("");
                 this->editor_filename = "mim_temp";
@@ -230,6 +231,8 @@ class Mim {
         string lastline_buffer;
 
         time_t lastline_time;   // lastline update timer
+
+        bool dirty_flag;
 
         string editor_filename;
         fstream editor_file;
@@ -699,7 +702,9 @@ class Mim {
                     break;
             }
 
-            status += (this->editor_filename + " - " + to_string(this->num_rows) + " lines");
+            status += (this->editor_filename + " - " + to_string(this->num_rows) + " lines ");
+            string modified = (this->dirty_flag) ? "(modified)" : "";
+            status += modified;
             int length = min((int)status.length(), this->config.screen_cols);
             string rstatus = (to_string(this->cy + 1) + "/" + to_string(this->num_rows));
             int rlength = min((int)rstatus.length(), this->config.screen_cols);
@@ -810,6 +815,7 @@ class Mim {
             this->rows_buffer.push_back(RowBuffer(line));
             this->rows_buffer[this->num_rows].render = this->renderFromRawWithConfig(line);
             ++this->num_rows;
+            this->dirty_flag = true;
         }
 
         void insertCharToRow(int num_row, int at, int ch) {
@@ -822,6 +828,7 @@ class Mim {
             row.raw = row.raw.substr(0, at) + string(1, ch) + row.raw.substr(at);
             row.render = this->renderFromRawWithConfig(row.raw);
             this->rows_buffer[num_row] = row;
+            this->dirty_flag = true;
         }
 
         /*** editor operations ***/
@@ -870,6 +877,7 @@ class Mim {
             }
 
             this->editor_file.close();
+            this->dirty_flag = false;
         }
 
         void saveToFile(void) {
@@ -884,6 +892,7 @@ class Mim {
             string buf_string = this->rowsBufferToString(buf_len);
             this->editor_file.write(buf_string.c_str(), buf_len);
             this->updateLastlineBuffer(to_string(buf_len) + " bytes written to disk");
+            this->dirty_flag = false;
             this->editor_file.close();
         }
 };
