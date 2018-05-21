@@ -140,7 +140,7 @@ class Mim {
                 this->screen_buffer.clear();
                 this->command_buffer.clear();
 
-                this->updateLastlineBuffer("HELP: 'q' = quit");
+                this->updateLastlineBuffer("");
                 this->editor_filename = "[No Name]";
 
                 this->enableRawMode();
@@ -475,11 +475,9 @@ class Mim {
             switch (ch) {
                 case 'i':
                     this->editor_mode = Mim::MimMode::insert;
-                    this->updateLastlineBuffer("-- INSERT --");
                     break;
                 case ':':
                     this->editor_mode = Mim::MimMode::lastline;
-                    this->updateLastlineBuffer(":");
                     break;
                 case 'q':
                     this->closeEditor();
@@ -533,7 +531,6 @@ class Mim {
             switch (ch) {
                 case KEY_ESC:
                     this->editor_mode = Mim::MimMode::command;
-                    this->updateLastlineBuffer("COMMAND");
                     break;
                 case KEY_CTRL('q'):
                     this->closeEditor();
@@ -569,10 +566,11 @@ class Mim {
         }
 
         void processKeyPressInLastlineMode(const int &ch) {
+            this->updateLastlineBuffer(this->lastline_buffer);
+
             switch (ch) {
                 case KEY_ESC:
                     this->editor_mode = Mim::MimMode::command;
-                    this->updateLastlineBuffer("COMMAND");
                     break;
                 case KEY_CTRL('q'):
                     this->closeEditor();
@@ -682,7 +680,23 @@ class Mim {
         }
 
         inline void drawStatusBar(void) {
-            string status = (this->editor_filename + " - " + to_string(this->num_rows) + " lines");
+            string status = "";
+
+            switch (this->editor_mode) {
+                case Mim::MimMode::command:
+                    status += "COMMAND | ";
+                    break;
+                case Mim::MimMode::insert:
+                    status += "INSERT | ";
+                    break;
+                case Mim::MimMode::lastline:
+                    status += "LASTLINE | ";
+                    break;
+                default:
+                    break;
+            }
+
+            status += (this->editor_filename + " - " + to_string(this->num_rows) + " lines");
             int length = min((int)status.length(), this->config.screen_cols);
             string rstatus = (to_string(this->cy + 1) + "/" + to_string(this->num_rows));
             int rlength = min((int)rstatus.length(), this->config.screen_cols);
