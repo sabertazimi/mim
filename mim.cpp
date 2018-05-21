@@ -560,11 +560,15 @@ class Mim {
                     this->keyHomeEnd(ch);
                     break;
                 case '\r':
-                    // TODO
+                    this->insertNewline();
                     break;
                 case '\b':
                 case KEY_DEL:
-                    // TODO
+                    if (ch == KEY_DEL) {
+                        this->keyMoveCursor(KEY_ARROW_RIGHT);
+                    }
+
+                    this->delChar();
                     break;
                 case KEY_CTRL('l'):
                     // TODO
@@ -818,10 +822,30 @@ class Mim {
             return ret;
         }
 
-        void appendRow(const string &line) {
-            this->rows_buffer.push_back(RowBuffer(line));
-            this->rows_buffer[this->num_rows].render = this->renderFromRawWithConfig(line);
+        void insertRow(int num_row, const string &line) {
+            if (num_row < 0 || num_row > this->num_rows) {
+                return;
+            }
+
+            this->rows_buffer.insert(this->rows_buffer.begin() + num_row, RowBuffer(line));
+            this->rows_buffer[num_row].render = this->renderFromRawWithConfig(line);
             ++this->num_rows;
+            this->dirty_flag = true;
+        }
+
+        void delRow(int num_row) {
+            if (num_row < 0 || num_row >= this->num_rows) {
+                return;
+            }
+
+            this->rows_buffer.erase(this->rows_buffer.begin() + num_row);
+            --this->num_rows;
+            this->dirty_flag = true;
+        }
+
+        void appendStringToRow(int num_row, const string &str) {
+            this->rows_buffer[num_row].raw.append(str);
+            this->rows_buffer[num_row].render = this->renderFromRawWithConfig(this->rows_buffer[num_row].raw);
             this->dirty_flag = true;
         }
 
@@ -838,17 +862,64 @@ class Mim {
             this->dirty_flag = true;
         }
 
+        void delCharFromRow(int num_row, int at) {
+            RowBuffer row = this->rows_buffer[num_row];
+
+            if (at < 1 || at > (int)row.raw.length()) {
+                return;
+            }
+
+            string left = row.raw.substr(0, at - 1);
+            string right = (at < (int)row.raw.length()) ? row.raw.substr(at) : "";
+            row.raw = left + right;
+            row.render = this->renderFromRawWithConfig(row.raw);
+            this->rows_buffer[num_row] = row;
+            this->dirty_flag = true;
+        }
+
         /*** editor operations ***/
 
         void insertChar(int ch) {
-            if (this->cy >= this->num_rows) {
-                this->appendRow("");
+            if (this->cy == this->num_rows) {
+                this->insertRow(this->cy, "");
             }
 
             this->insertCharToRow(this->cy, this->cx, ch);
             ++this->cx;
         }
 
+        void delChar(void) {
+            if (this->cx <= 0 && this->cy <= 0) {
+                return;
+            }
+
+            if (this->cy < 0 || this->cy > this->num_rows) {
+                return;
+            }
+
+            if (this->cx == this->num_rows) {
+                this->keyMoveCursor(KEY_ARROW_LEFT);
+                return;
+            }
+
+            if (this->cx <= 0) {
+                this->keyMoveCursor(KEY_ARROW_LEFT);
+                this->appendStringToRow(this->cy, this->rows_buffer[this->cy + 1].raw);
+                this->delRow(this->cy + 1);
+            } else {
+                this->delCharFromRow(this->cy, this->cx);
+                --this->cx;
+            }
+        }
+
+        void insertNewline(void) {
+            if (this->cx == 0) {
+                this->insertRow(this->cy, "");
+                ++this->cy;
+            } else {
+
+            }
+        }
 
         /*** files ***/
         const string rowsBufferToString(int &ret_len) {
@@ -880,7 +951,7 @@ class Mim {
             string line;
 
             while (getline(this->editor_file, line)) {
-                this->appendRow(line);
+                this->insertRow(this->num_rows, line);
             }
 
             this->editor_file.close();
