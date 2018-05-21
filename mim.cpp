@@ -427,6 +427,14 @@ class Mim {
         }
 
         inline void keyPageUpDown(const int &key) {
+            if (key == KEY_PAGE_UP) {
+                // to the top of screen
+                this->cy = this->row_off;
+            } else {
+                // to the bottom of screen
+                this->cy = min(this->row_off + this->config.screen_rows - 1, this->num_rows);
+            }
+
             int times = this->config.screen_rows;
 
             while (times--) {
@@ -570,18 +578,22 @@ class Mim {
                 this->rx = cx2rx(this->rows_buffer[this->cy].raw, this->cx);
             }
 
+            // up
             if (this->cy < this->row_off) {
                 this->row_off = this->cy;
             }
 
+            // down
             if (this->cy >= this->row_off + this->config.screen_rows) {
                 this->row_off = this->cy - this->config.screen_rows + 1;
             }
 
+            // left
             if (this->rx < this->col_off) {
                 this->col_off = this->rx;
             }
 
+            // right
             if (this->rx >= this->col_off + this->config.screen_cols) {
                 this->col_off = this->rx - this->config.screen_cols + 1;
             }
