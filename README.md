@@ -24,6 +24,8 @@ Minimal vim-like text editor
 
 ### Lastline mode
 
+*   `save as` file
+
 ### Status bar
 
 *   filename

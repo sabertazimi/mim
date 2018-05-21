@@ -143,7 +143,7 @@ class Mim {
                 this->force_quit = false;
 
                 this->updateLastlineBuffer("");
-                this->editor_filename = "mim_temp";
+                this->editor_filename = "";
 
                 this->enableRawMode();
 
@@ -181,6 +181,10 @@ class Mim {
 
         void open(const char *filename) throw(MimError) {
             try {
+                if (filename == NULL) {
+                    return;
+                }
+
                 this->openFile(filename);
             } catch (const MimError &e) {
                 throw e;
@@ -237,7 +241,6 @@ class Mim {
         bool force_quit;
 
         string editor_filename;
-        fstream editor_file;
         FILE *log;
 
         /*** terminal ***/
@@ -582,17 +585,57 @@ class Mim {
             }
         }
 
+        string getLastlineFromInput(const string &prompt, int first_ch) {
+            string lastline_command = "";
+
+            if (first_ch != '\0') {
+                lastline_command.append(string(1, first_ch));
+            }
+
+            while (true) {
+                this->updateLastlineBuffer(prompt + lastline_command);
+                this->refreshScreen();
+                this->refreshBuffer();
+                int ch = this->readKey();
+
+                if (ch == '\b') {
+                    if (lastline_command.length()) {
+                        lastline_command = lastline_command.substr(0, lastline_command.length() - 1);
+                    }
+                } else if (ch == KEY_ESC) {
+                    lastline_command = "";
+                    break;
+                } else if (ch == '\r') {
+                    if (lastline_command.length()) {
+                        break;
+                    }
+                } else if (!iscntrl(ch) && ch < 128) {
+                    lastline_command.append(string(1, ch));
+                }
+            }
+
+            this->updateLastlineBuffer("");
+            return lastline_command;
+        }
+
+        void processLastlineCommand(const string &command) {
+        }
+
         void processKeyPressInLastlineMode(const int &ch) {
-            this->updateLastlineBuffer(this->lastline_buffer);
+            this->updateLastlineBuffer(":");
 
             switch (ch) {
                 case KEY_ESC:
+                case '\r':
+                    this->updateLastlineBuffer("");
                     this->editor_mode = Mim::MimMode::command;
                     break;
                 case KEY_CTRL('q'):
                     this->closeEditor();
                     break;
                 default:
+                    string lastline_command = this->getLastlineFromInput(":", ch);
+                    this->editor_mode = Mim::MimMode::command;
                     break;
             }
         }
@@ -713,7 +756,8 @@ class Mim {
                     break;
             }
 
-            status += (this->editor_filename + " - " + to_string(this->num_rows) + " lines ");
+            string filename = (this->editor_filename == "") ? "[No Name]" : this->editor_filename;
+            status += (filename + " - " + to_string(this->num_rows) + " lines ");
             string modified = (this->dirty_flag) ? "(modified)" : "";
             status += modified;
             int length = min((int)status.length(), this->config.screen_cols);
@@ -943,12 +987,13 @@ class Mim {
         }
 
         void openFile(const char *filename) throw(MimError) {
-            this->editor_file.open(filename, fstream::in | fstream::out);
+            fstream fs;
+            fs.open(filename, fstream::in | fstream::out);
 
-            if (!this->editor_file) {
-                this->editor_file.open(filename, fstream::in | fstream::out | fstream::trunc);
+            if (!fs) {
+                fs.open(filename, fstream::in | fstream::out | fstream::trunc);
 
-                if (!this->editor_file) {
+                if (!fs) {
                     throw MimError("Open file failed.");
                 }
             }
@@ -957,28 +1002,37 @@ class Mim {
 
             string line;
 
-            while (getline(this->editor_file, line)) {
+            while (getline(fs, line)) {
                 this->insertRow(this->num_rows, line);
             }
 
-            this->editor_file.close();
             this->dirty_flag = false;
+            fs.close();
         }
 
         void saveToFile(void) {
-            this->editor_file.open(this->editor_filename.c_str(), fstream::in | fstream::out | fstream::trunc);
+            if (this->editor_filename == "") {
+                this->editor_filename = this->getLastlineFromInput("Save as: ", '\0');
 
-            if (!this->editor_file) {
-                this->updateLastlineBuffer("Can't save I/O error");
+                if (this->editor_filename == "") {
+                    this->updateLastlineBuffer("Save aborted");
+                    return;
+                }
+            }
+
+            fstream fs(this->editor_filename, fstream::in | fstream::out | fstream::trunc);
+
+            if (!fs) {
+                this->updateLastlineBuffer("Save to file " + this->editor_filename + " failed");
                 return;
             }
 
             int buf_len = 0;
             string buf_string = this->rowsBufferToString(buf_len);
-            this->editor_file.write(buf_string.c_str(), buf_len);
+            fs.write(buf_string.c_str(), buf_len);
             this->updateLastlineBuffer(to_string(buf_len) + " bytes written to disk");
             this->dirty_flag = false;
-            this->editor_file.close();
+            fs.close();
         }
 };
 
