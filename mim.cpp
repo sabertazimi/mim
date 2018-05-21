@@ -1,14 +1,15 @@
 #include <sys/ioctl.h>
 #include <termios.h>
+#include <time.h>
 #include <unistd.h>
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdexcept>
-#include <string>
 #include <vector>
+#include <string>
 #include <fstream>
+#include <stdexcept>
 
 using namespace std;
 
@@ -139,6 +140,8 @@ class Mim {
                 this->rows_buffer.clear();
                 this->screen_buffer.clear();
                 this->command_buffer.clear();
+
+                this->updateLastlineBuffer("HELP: 'q' = quit");
                 this->editor_file = "[No Name]";
 
                 this->enableRawMode();
@@ -225,6 +228,9 @@ class Mim {
 
         string screen_buffer;
         string command_buffer;
+        string lastline_buffer;
+
+        time_t lastline_time;   // lastline update timer
 
         string editor_file;
         FILE *log;
@@ -469,9 +475,11 @@ class Mim {
             switch (ch) {
                 case 'i':
                     this->editor_mode = Mim::MimMode::insert;
+                    this->updateLastlineBuffer("-- INSERT --");
                     break;
                 case ':':
                     this->editor_mode = Mim::MimMode::lastline;
+                    this->updateLastlineBuffer(":");
                     break;
                 case 'q':
                     this->closeEditor();
@@ -523,6 +531,7 @@ class Mim {
             switch (ch) {
                 case KEY_ESC:
                     this->editor_mode = Mim::MimMode::command;
+                    this->updateLastlineBuffer("COMMAND");
                     break;
                 case KEY_CTRL('q'):
                     this->closeEditor();
@@ -550,6 +559,7 @@ class Mim {
             switch (ch) {
                 case KEY_ESC:
                     this->editor_mode = Mim::MimMode::command;
+                    this->updateLastlineBuffer("COMMAND");
                     break;
                 case KEY_CTRL('q'):
                     this->closeEditor();
@@ -653,7 +663,7 @@ class Mim {
                     }
                 }
 
-                this->screen_buffer.append("\x1b[K");
+                this->clearLineAfterCursor();
                 this->screen_buffer.append("\r\n");
             }
         }
@@ -677,22 +687,23 @@ class Mim {
             }
 
             this->screen_buffer.append("\x1b[m");
+            this->screen_buffer.append("\r\n");
+        }
+
+        inline void updateLastlineBuffer(const string &lastline) {
+            this->lastline_buffer.clear();
+            this->lastline_buffer.append(lastline);
+            this->lastline_time = time(NULL);
         }
 
         inline void drawLastline(void) {
-            switch (this->editor_mode) {
-                case Mim::MimMode::command:
-                    this->screen_buffer.append("COMMAND     ");
-                    break;
-                case Mim::MimMode::insert:
-                    this->screen_buffer.append("-- INSERT --");
-                    break;
-                case Mim::MimMode::lastline:
-                    this->screen_buffer.append(":           ");
-                    break;
-                default:
-                    break;
+            int length = min((int)this->lastline_buffer.length(), this->config.screen_cols);
+
+            if (length && time(NULL) - this->lastline_time < 5) {
+                this->screen_buffer.append(this->lastline_buffer.c_str(), length);
             }
+
+            this->clearLineAfterCursor();
         }
 
         inline void resetCursor(void) {
@@ -710,6 +721,10 @@ class Mim {
         inline void moveCursorTo(int x, int y) {
             string buf = "\x1b[" + to_string(y + 1) + ";" + to_string(x + 1) + "H";
             this->screen_buffer.append(buf);
+        }
+
+        inline void clearLineAfterCursor(void) {
+            this->screen_buffer.append("\x1b[K");
         }
 
         inline void clearScreen(void) {
