@@ -141,7 +141,7 @@ class Mim {
                 this->command_buffer.clear();
 
                 this->updateLastlineBuffer("HELP: 'q' = quit");
-                this->editor_file = "[No Name]";
+                this->editor_filename = "[No Name]";
 
                 this->enableRawMode();
 
@@ -177,9 +177,9 @@ class Mim {
             }
         }
 
-        void openFile(const char *filename) throw(MimError) {
+        void open(const char *filename) throw(MimError) {
             try {
-                this->open(filename);
+                this->openFile(filename);
             } catch (const MimError &e) {
                 throw e;
             }
@@ -231,7 +231,8 @@ class Mim {
 
         time_t lastline_time;   // lastline update timer
 
-        string editor_file;
+        string editor_filename;
+        fstream editor_file;
         FILE *log;
 
         /*** terminal ***/
@@ -484,9 +485,11 @@ class Mim {
                     this->closeEditor();
                     break;
                 case 'h':
+                case '\b':
                     this->keyMoveCursor(KEY_ARROW_LEFT);
                     break;
                 case 'j':
+                case '\r':
                     this->keyMoveCursor(KEY_ARROW_DOWN);
                     break;
                 case 'k':
@@ -548,6 +551,16 @@ class Mim {
                 case KEY_HOME:
                 case KEY_END:
                     this->keyHomeEnd(ch);
+                    break;
+                case '\r':
+                    // TODO
+                    break;
+                case '\b':
+                case KEY_DEL:
+                    // TODO
+                    break;
+                case KEY_CTRL('l'):
+                    // TODO
                     break;
                 default:
                     this->insertChar(ch);
@@ -669,7 +682,7 @@ class Mim {
         }
 
         inline void drawStatusBar(void) {
-            string status = (this->editor_file + " - " + to_string(this->num_rows) + " lines");
+            string status = (this->editor_filename + " - " + to_string(this->num_rows) + " lines");
             int length = min((int)status.length(), this->config.screen_cols);
             string rstatus = (to_string(this->cy + 1) + "/" + to_string(this->num_rows));
             int rlength = min((int)rstatus.length(), this->config.screen_cols);
@@ -807,27 +820,26 @@ class Mim {
 
 
         /*** files ***/
-        void open(const char *filename) {
-            fstream fs;
-            fs.open(filename, fstream::in | fstream::out);
+        void openFile(const char *filename) {
+            this->editor_file.open(filename, fstream::in | fstream::out);
 
-            if (!fs) {
-                fs.open(filename, fstream::in | fstream::out | fstream::trunc);
+            if (!this->editor_file) {
+                this->editor_file.open(filename, fstream::in | fstream::out | fstream::trunc);
 
-                if (!fs) {
+                if (!this->editor_file) {
                     throw MimError("Open file failed.");
                 }
             }
 
-            this->editor_file = string(filename);
+            this->editor_filename = string(filename);
 
             string line;
 
-            while (getline(fs, line)) {
+            while (getline(this->editor_file, line)) {
                 this->appendRow(line);
             }
 
-            fs.close();
+            this->editor_file.close();
         }
 };
 
@@ -838,7 +850,7 @@ int main(int argc, char **argv) {
         mim.init();
 
         if (argc >= 2) {
-            mim.openFile(argv[1]);
+            mim.open(argv[1]);
         }
 
         mim.start();
