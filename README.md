@@ -21,6 +21,12 @@ Minimal vim-like text editor
 
 ### Lastline mode
 
+### Status bar
+
+*   filename
+*   total lines number
+*   current line numebr
+
 ## Change terminal mode
 
 change mode of terminal from `canonical/cooked mode` (interact when 'enter' pressed)

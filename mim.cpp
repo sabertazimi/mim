@@ -12,6 +12,8 @@
 
 using namespace std;
 
+/*** keypad macros ***/
+
 #define KEY_CTRL(k)  ((k) & 0x1f)
 
 enum EditorKey {
@@ -26,6 +28,8 @@ enum EditorKey {
     KEY_PAGE_UP,
     KEY_PAGE_DOWN
 };
+
+/*** VT100 control sequences macros ***/
 
 class MimError : public exception {
     public:
@@ -135,6 +139,7 @@ class Mim {
                 this->rows_buffer.clear();
                 this->screen_buffer.clear();
                 this->command_buffer.clear();
+                this->editor_file = "[No Name]";
 
                 this->enableRawMode();
 
@@ -212,14 +217,16 @@ class Mim {
         int cx;     // column number in the file (start with 0) (not cursor position)
         int cy;     // row number in the file (start with 0) (not cursor position)
         int rx;     // rendered column number
+
         int num_rows;
         int row_off;
         int col_off;
         vector<RowBuffer> rows_buffer;
-        string screen_buffer;
 
+        string screen_buffer;
         string command_buffer;
 
+        string editor_file;
         FILE *log;
 
         /*** terminal ***/
@@ -463,6 +470,9 @@ class Mim {
                 case 'i':
                     this->editor_mode = Mim::MimMode::insert;
                     break;
+                case ':':
+                    this->editor_mode = Mim::MimMode::lastline;
+                    break;
                 case 'q':
                     this->closeEditor();
                     break;
@@ -477,6 +487,10 @@ class Mim {
                     break;
                 case 'l':
                     this->keyMoveCursor(KEY_ARROW_RIGHT);
+                    break;
+                case 'g':
+                    this->cx = 0;
+                    this->cy = 0;
                     break;
                 case 'G':
                     this->cy = this->num_rows;
@@ -534,6 +548,9 @@ class Mim {
 
         void processKeyPressInLastlineMode(const int &ch) {
             switch (ch) {
+                case KEY_ESC:
+                    this->editor_mode = Mim::MimMode::command;
+                    break;
                 case KEY_CTRL('q'):
                     this->closeEditor();
                     break;
@@ -641,6 +658,43 @@ class Mim {
             }
         }
 
+        inline void drawStatusBar(void) {
+            string status = (this->editor_file + " - " + to_string(this->num_rows) + " lines");
+            int length = min((int)status.length(), this->config.screen_cols);
+            string rstatus = (to_string(this->cy + 1) + "/" + to_string(this->num_rows));
+            int rlength = min((int)rstatus.length(), this->config.screen_cols);
+
+            this->screen_buffer.append("\x1b[7m");
+            this->screen_buffer.append(status.c_str(), length);
+
+            for (int i = length, cols = this->config.screen_cols; i < cols; ++i) {
+                if (cols - i == rlength) {
+                    this->screen_buffer.append(rstatus);
+                    break;
+                } else {
+                    this->screen_buffer.append(" ");
+                }
+            }
+
+            this->screen_buffer.append("\x1b[m");
+        }
+
+        inline void drawLastline(void) {
+            switch (this->editor_mode) {
+                case Mim::MimMode::command:
+                    this->screen_buffer.append("COMMAND     ");
+                    break;
+                case Mim::MimMode::insert:
+                    this->screen_buffer.append("-- INSERT --");
+                    break;
+                case Mim::MimMode::lastline:
+                    this->screen_buffer.append(":           ");
+                    break;
+                default:
+                    break;
+            }
+        }
+
         inline void resetCursor(void) {
             this->screen_buffer.append("\x1b[H");  // move cursor to line 1 column 1
         }
@@ -668,6 +722,8 @@ class Mim {
             this->hideCursor();
             this->resetCursor();
             this->drawRows();
+            this->drawStatusBar();
+            this->drawLastline();
             this->moveCursorTo(this->rx - this->col_off, this->cy - this->row_off);
             this->showCursor();
         }
@@ -723,6 +779,8 @@ class Mim {
                     throw MimError("Open file failed.");
                 }
             }
+
+            this->editor_file = string(filename);
 
             string line;
 
