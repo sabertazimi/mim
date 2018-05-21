@@ -141,7 +141,7 @@ class Mim {
                 this->command_buffer.clear();
 
                 this->updateLastlineBuffer("");
-                this->editor_filename = "[No Name]";
+                this->editor_filename = "mim_temp";
 
                 this->enableRawMode();
 
@@ -559,6 +559,9 @@ class Mim {
                 case KEY_CTRL('l'):
                     // TODO
                     break;
+                case KEY_CTRL('s'):
+                    this->saveToFile();
+                    break;
                 default:
                     this->insertChar(ch);
                     break;
@@ -834,7 +837,20 @@ class Mim {
 
 
         /*** files ***/
-        void openFile(const char *filename) {
+        const string rowsBufferToString(int &ret_len) {
+            string ret_string = "";
+            ret_len = 0;
+
+            for (int i = 0, rows = this->num_rows; i < rows; ++i) {
+                string row = this->rows_buffer[i].raw;
+                ret_len += (row.length() + 1);
+                ret_string += (row + "\n");
+            }
+
+            return ret_string;
+        }
+
+        void openFile(const char *filename) throw(MimError) {
             this->editor_file.open(filename, fstream::in | fstream::out);
 
             if (!this->editor_file) {
@@ -853,6 +869,21 @@ class Mim {
                 this->appendRow(line);
             }
 
+            this->editor_file.close();
+        }
+
+        void saveToFile(void) {
+            this->editor_file.open(this->editor_filename.c_str(), fstream::in | fstream::out | fstream::trunc);
+
+            if (!this->editor_file) {
+                this->updateLastlineBuffer("Can't save I/O error");
+                return;
+            }
+
+            int buf_len = 0;
+            string buf_string = this->rowsBufferToString(buf_len);
+            this->editor_file.write(buf_string.c_str(), buf_len);
+            this->updateLastlineBuffer(to_string(buf_len) + " bytes written to disk");
             this->editor_file.close();
         }
 };

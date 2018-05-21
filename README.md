@@ -20,6 +20,7 @@ Minimal vim-like text editor
 *   `home/end` keys: move to start/end of line
 *   `page up/down` keys: page up/down
 *   `esc` key: goto command mode
+*   `^s`: save to file
 
 ### Lastline mode
 
