@@ -24,6 +24,9 @@ Minimal vim-like text editor
 
 ### Lastline Mode
 
+*   `:q`: quit
+*   `:w`: save to file
+*   `!`: force quit flag
 *   `save as` file
 
 ### Status Bar

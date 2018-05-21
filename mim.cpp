@@ -390,8 +390,7 @@ class Mim {
 
         void closeEditor(void) {
             if (this->dirty_flag && !this->force_quit) {
-                this->updateLastlineBuffer("[WARN] File has unsaved changes (Press more times to quit)");
-                this->force_quit = true;
+                this->updateLastlineBuffer("[WARN] File has unsaved changes (Add '!' flag to force quit)");
             } else {
                 this->editor_state = Mim::MimState::stoped;
                 this->clearScreen();
@@ -490,10 +489,11 @@ class Mim {
                     this->editor_mode = Mim::MimMode::insert;
                     break;
                 case ':':
+                    this->updateLastlineBuffer(":");
                     this->editor_mode = Mim::MimMode::lastline;
                     break;
                 case 'q':
-                    this->closeEditor();
+                    // TODO
                     break;
                 case 'h':
                 case '\b':
@@ -546,7 +546,7 @@ class Mim {
                     this->editor_mode = Mim::MimMode::command;
                     break;
                 case KEY_CTRL('q'):
-                    this->closeEditor();
+                    // TODO
                     break;
                 case KEY_ARROW_LEFT:
                 case KEY_ARROW_RIGHT:
@@ -619,11 +619,22 @@ class Mim {
         }
 
         void processLastlineCommand(const string &command) {
+            if (command.find("!") != string::npos) {
+                this->force_quit = true;
+            }
+
+            if (command.find("w") != string::npos) {
+                this->saveToFile();
+            }
+
+            if (command.find("q") != string::npos) {
+                this->closeEditor();
+            }
+
+            this->editor_mode = Mim::MimMode::command;
         }
 
         void processKeyPressInLastlineMode(const int &ch) {
-            this->updateLastlineBuffer(":");
-
             switch (ch) {
                 case KEY_ESC:
                 case '\r':
@@ -631,11 +642,11 @@ class Mim {
                     this->editor_mode = Mim::MimMode::command;
                     break;
                 case KEY_CTRL('q'):
-                    this->closeEditor();
+                    // TODO
                     break;
                 default:
                     string lastline_command = this->getLastlineFromInput(":", ch);
-                    this->editor_mode = Mim::MimMode::command;
+                    processLastlineCommand(lastline_command);
                     break;
             }
         }
