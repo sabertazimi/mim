@@ -11,6 +11,7 @@ Minimal vim-like text editor
 *   `^u / ^d`: page up/down
 *   `G`: move to end of file
 *   `i`: goto insert mode
+*   `A/I/o/O`: more insert commands
 *   `\b`: move left
 *   `\r`: move down
 

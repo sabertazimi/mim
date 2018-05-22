@@ -439,7 +439,7 @@ class Mim {
                         ++this->cx;
                     } else if (end_of_line && this->cy < this->num_rows) {
                         ++this->cy;
-                        this->cx = 0;
+                        this->keyHomeEnd(KEY_HOME);
                     }
 
                     break;
@@ -503,11 +503,37 @@ class Mim {
             }
         }
 
+        inline void enterCommandMode(void) {
+            this->updateLastlineBuffer("");
+            this->editor_mode = Mim::MimMode::command;
+        }
+
+        inline void enterInsertMode(void) {
+            this->updateLastlineBuffer("-- INSERT --");
+            this->editor_mode = Mim::MimMode::insert;
+        }
+
         void processKeyPressInCommandMode(const int &ch) {
             switch (ch) {
+                case 'A':
+                    this->keyHomeEnd(KEY_END);
+                    this->enterInsertMode();
+                    break;
+                case 'I':
+                    this->keyHomeEnd(KEY_HOME);
+                    this->enterInsertMode();
+                    break;
+                case 'o':
+                    this->insertNewline();
+                    this->enterInsertMode();
+                    break;
+                case 'O':
+                    this->keyMoveCursor(KEY_ARROW_UP);
+                    this->insertNewline();
+                    this->enterInsertMode();
+                    break;
                 case 'i':
-                    this->updateLastlineBuffer("-- INSERT --");
-                    this->editor_mode = Mim::MimMode::insert;
+                    this->enterInsertMode();
                     break;
                 case ':':
                     this->updateLastlineBuffer(":");
@@ -564,8 +590,7 @@ class Mim {
         void processKeyPressInInsertMode(const int &ch) {
             switch (ch) {
                 case KEY_ESC:
-                    this->updateLastlineBuffer("");
-                    this->editor_mode = Mim::MimMode::command;
+                    this->enterCommandMode();
                     break;
                 case KEY_CTRL('q'):
                     // TODO
@@ -645,7 +670,7 @@ class Mim {
 
             if (regex_match(command, re_num)) {
                 int jump_line = stoi(command);
-                this->cx = 0;
+                this->keyHomeEnd(KEY_HOME);
                 this->cy = min(max(jump_line - 1, 0), this->num_rows);
             }
 
@@ -661,15 +686,14 @@ class Mim {
                 this->closeEditor();
             }
 
-            this->editor_mode = Mim::MimMode::command;
+            this->enterCommandMode();
         }
 
         void processKeyPressInLastlineMode(const int &ch) {
             switch (ch) {
                 case KEY_ESC:
                 case '\r':
-                    this->updateLastlineBuffer("");
-                    this->editor_mode = Mim::MimMode::command;
+                    this->enterCommandMode();
                     break;
                 case KEY_CTRL('q'):
                     // TODO
@@ -1033,7 +1057,7 @@ class Mim {
                 this->insertRow(this->cy + 1, right_string);
             }
 
-            this->cx = 0;
+            this->keyHomeEnd(KEY_HOME);
             ++this->cy;
         }
 
