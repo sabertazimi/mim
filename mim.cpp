@@ -788,7 +788,7 @@ class Mim {
 
         inline void showVersion(void) {
             string welcome_msg = "Mim Editor -- version " + this->version;
-            int padding = (this->config.screen_cols - welcome_msg.length() - this->rx_base) / 2;
+            int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
 
             if (padding) {
                 this->screen_buffer.append("~");
@@ -824,10 +824,6 @@ class Mim {
             for (int y = 0, rows = this->num_rows, maxrows = this->config.screen_rows; y < maxrows; ++y) {
                 int file_row = y + row_off;
 
-                if (this->config.set_num) {
-                    this->drawLineNumber(file_row);
-                }
-
                 if (file_row >= rows) {
                     // draw '~' placeholder or version
                     if (rows == 0 && y == maxrows / 3) {
@@ -836,6 +832,10 @@ class Mim {
                         this->screen_buffer.append("~");
                     }
                 } else {
+                    if (this->config.set_num) {
+                        this->drawLineNumber(file_row);
+                    }
+
                     // draw text data from files
                     int length = this->rows_buffer[file_row].render.length() - this->col_off;
 
