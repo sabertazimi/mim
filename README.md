@@ -47,6 +47,8 @@ Minimal vim-like text editor
 *   search bar
 *   syntax highlight
 *   more command/insert/lastline operations
+*   complex command (e.g cl, dd)
+*   undo/redo
 
 ## Change terminal mode
 
