@@ -506,6 +506,7 @@ class Mim {
         void processKeyPressInCommandMode(const int &ch) {
             switch (ch) {
                 case 'i':
+                    this->updateLastlineBuffer("-- INSERT --");
                     this->editor_mode = Mim::MimMode::insert;
                     break;
                 case ':':
@@ -563,6 +564,7 @@ class Mim {
         void processKeyPressInInsertMode(const int &ch) {
             switch (ch) {
                 case KEY_ESC:
+                    this->updateLastlineBuffer("");
                     this->editor_mode = Mim::MimMode::command;
                     break;
                 case KEY_CTRL('q'):
