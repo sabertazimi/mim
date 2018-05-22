@@ -544,6 +544,15 @@ class Mim {
                     this->keyMoveCursor(KEY_ARROW_RIGHT);
                     this->delChar();
                     break;
+                // modify:
+                case 'r':
+                    {
+                        int key = this->readKey();
+                        this->keyMoveCursor(KEY_ARROW_RIGHT);
+                        this->delChar();
+                        this->insertChar(key);
+                        break;
+                    }
                 // change mode
                 case 'i':
                     this->enterInsertMode();
