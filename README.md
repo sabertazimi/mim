@@ -44,7 +44,6 @@ Minimal vim-like text editor
 
 *   search bar
 *   syntax highlight
-*   show line number
 *   more command/insert/lastline operations
 
 ## Change terminal mode
