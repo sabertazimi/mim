@@ -50,12 +50,14 @@ Minimal vim-like text editor
 *   complex command (e.g cl, dd)
 *   undo/redo
 
-## Change terminal mode
+## Key Terminology
+
+### Change terminal mode
 
 change mode of terminal from `canonical/cooked mode` (interact when 'enter' pressed)
 to `raw mode` (interact immediately)
 
-## Escape Sequences
+### Escape Sequences
 
 *   `\x1b[` or `\033[` (`27[`) is the start of an escape sequence for terminal control command
 *   Most termimal emulator support [VT100 terminal escape sequences](https://vt100.net/docs/vt100-ug/chapter3.html)
@@ -67,7 +69,9 @@ to `raw mode` (interact immediately)
 \x1b[x;yH  move cursor to line x column y
 ```
 
-## Ncurses library
+## Resources
 
-http://www.ibiblio.org/pub/Linux/docs/HOWTO/other-formats/pdf/NCURSES-Programming-HOWTO.pdf
+*   [ncurses library](http://www.ibiblio.org/pub/Linux/docs/HOWTO/other-formats/pdf/NCURSES-Programming-HOWTO.pdf)
+*   [The Craft of Text Editing](https://www.finseth.com/craft/craft.pdf)
+*   [VSCode Vim](https://github.com/VSCodeVim/Vim)
 
