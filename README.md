@@ -13,6 +13,7 @@ Minimal vim-like text editor
 *   `i`: goto insert mode
 *   `A/I/o/O`: more insert commands
 *   `c/d`: delete char
+*   `r`: replace char
 *   `\b`: move left
 *   `\r`: move down
 
