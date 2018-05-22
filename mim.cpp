@@ -524,12 +524,13 @@ class Mim {
                     this->enterInsertMode();
                     break;
                 case 'o':
-                    this->insertNewline();
+                    this->insertRow(this->cy + 1, "");
+                    this->keyMoveCursor(KEY_ARROW_DOWN);
                     this->enterInsertMode();
                     break;
                 case 'O':
-                    this->keyMoveCursor(KEY_ARROW_UP);
-                    this->insertNewline();
+                    this->insertRow(this->cy, "");
+                    this->keyHomeEnd(KEY_HOME);
                     this->enterInsertMode();
                     break;
                 case 'i':
