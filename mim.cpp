@@ -10,6 +10,7 @@
 #include <string>
 #include <fstream>
 #include <stdexcept>
+#include <regex>
 
 using namespace std;
 
@@ -638,6 +639,14 @@ class Mim {
         }
 
         void processLastlineCommand(const string &command) {
+            regex re_num("[0-9]+");
+
+            if (regex_match(command, re_num)) {
+                int jump_line = stoi(command);
+                this->cx = 0;
+                this->cy = min(max(jump_line - 1, 0), this->num_rows);
+            }
+
             if (command.find("!") != string::npos) {
                 this->force_quit = true;
             }
