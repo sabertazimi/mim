@@ -12,6 +12,7 @@ Minimal vim-like text editor
 *   `G`: move to end of file
 *   `i`: goto insert mode
 *   `A/I/o/O`: more insert commands
+*   `c/d`: delete char
 *   `\b`: move left
 *   `\r`: move down
 

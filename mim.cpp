@@ -515,6 +515,7 @@ class Mim {
 
         void processKeyPressInCommandMode(const int &ch) {
             switch (ch) {
+                // insert
                 case 'A':
                     this->keyHomeEnd(KEY_END);
                     this->enterInsertMode();
@@ -533,6 +534,17 @@ class Mim {
                     this->keyHomeEnd(KEY_HOME);
                     this->enterInsertMode();
                     break;
+                // delete
+                case 'c':
+                    this->keyMoveCursor(KEY_ARROW_RIGHT);
+                    this->delChar();
+                    this->enterInsertMode();
+                    break;
+                case 'd':
+                    this->keyMoveCursor(KEY_ARROW_RIGHT);
+                    this->delChar();
+                    break;
+                // change mode
                 case 'i':
                     this->enterInsertMode();
                     break;
@@ -543,6 +555,7 @@ class Mim {
                 case 'q':
                     // TODO
                     break;
+                // movement
                 case 'h':
                 case '\b':
                     this->keyMoveCursor(KEY_ARROW_LEFT);
