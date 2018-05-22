@@ -718,8 +718,8 @@ class Mim {
             }
 
             // left
-            if (this->rx < this->col_off) {
-                this->col_off = this->rx;
+            if (this->rx - this->rx_base < this->col_off) {
+                this->col_off = this->rx - this->rx_base;
             }
 
             // right
@@ -730,7 +730,7 @@ class Mim {
 
         inline void showVersion(void) {
             string welcome_msg = "Mim Editor -- version " + this->version;
-            int padding = (this->config.screen_cols - welcome_msg.length()) / 2;
+            int padding = (this->config.screen_cols - welcome_msg.length() - this->rx_base) / 2;
 
             if (padding) {
                 this->screen_buffer.append("~");
@@ -782,7 +782,7 @@ class Mim {
                     int length = this->rows_buffer[file_row].render.length() - this->col_off;
 
                     if (length > 0) {
-                        length = min(length, this->config.screen_cols);
+                        length = min(length, this->config.screen_cols - this->rx_base);
                         this->screen_buffer.append(this->rows_buffer[file_row].render.substr(this->col_off, length));
                     }
                 }
