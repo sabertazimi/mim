@@ -76,4 +76,5 @@ to `raw mode` (interact immediately)
 *   [ncurses library](http://www.ibiblio.org/pub/Linux/docs/HOWTO/other-formats/pdf/NCURSES-Programming-HOWTO.pdf)
 *   [The Craft of Text Editing](https://www.finseth.com/craft/craft.pdf)
 *   [VSCode Vim](https://github.com/VSCodeVim/Vim)
+*   [Build Your Own Text Editor](https://viewsourcecode.org/snaptoken/kilo/index.html)
 
