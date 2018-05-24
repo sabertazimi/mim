@@ -129,7 +129,7 @@ class Mim {
             }
         }
 
-        void init(void) throw(MimError) {
+        void init(void) {
             try {
                 this->editor_state = Mim::MimState::stoped;
                 this->editor_mode = Mim::MimMode::command;
@@ -145,6 +145,8 @@ class Mim {
                 this->command_buffer.clear();
                 this->dirty_flag = false;
                 this->force_quit = false;
+
+                this->lastline_mode = Mim::LastlineMode::normal;
 
                 this->updateLastlineBuffer("");
                 this->editor_filename = "";
@@ -169,7 +171,7 @@ class Mim {
             }
         }
 
-        void start(void) throw(MimError) {
+        void start(void) {
             this->editor_state = Mim::MimState::running;
 
             while (this->editor_state == Mim::MimState::running) {
@@ -183,7 +185,7 @@ class Mim {
             }
         }
 
-        void open(const char *filename) throw(MimError) {
+        void open(const char *filename) {
             try {
                 if (filename == NULL) {
                     return;
@@ -222,6 +224,11 @@ class Mim {
             lastline
         };
 
+        enum LastlineMode {
+            normal,
+            search
+        };
+
         MimState editor_state;
         MimMode editor_mode;
         MimConfig config;
@@ -241,6 +248,7 @@ class Mim {
         string command_buffer;
         string lastline_buffer;
 
+        int lastline_mode;
         time_t lastline_time;   // lastline update timer
 
         bool dirty_flag;
@@ -251,7 +259,7 @@ class Mim {
 
         /*** terminal ***/
 
-        void enableRawMode(void) throw(MimError) {
+        void enableRawMode(void) {
             if (tcgetattr(STDIN_FILENO, &(this->config.orig_termios)) == -1) {
                 throw MimError("Get terminal mode failed.");
             }
@@ -273,7 +281,7 @@ class Mim {
             }
         }
 
-        void disableRawMode(void) throw(MimError) {
+        void disableRawMode(void) {
             if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &(this->config.orig_termios)) == -1) {
                 throw MimError("Set terminal mode failed.");
             }
@@ -293,7 +301,7 @@ class Mim {
             }
         }
 
-        int readKey(void) throw(MimError) {
+        int readKey(void) {
             int nread;
             char ch;
 
@@ -369,7 +377,7 @@ class Mim {
             return ch;
         }
 
-        const struct winsize getWindowSize(void) throw(MimError) {
+        const struct winsize getWindowSize(void) {
             struct winsize ws;
 
             if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0) {
@@ -379,7 +387,7 @@ class Mim {
             return ws;
         }
 
-        const CursorPosition getCursorPosition(void) throw(MimError) {
+        const CursorPosition getCursorPosition(void) {
             char buf[32];
             int row = 0;
             int col = 0;
@@ -504,7 +512,6 @@ class Mim {
         }
 
         inline void enterCommandMode(void) {
-            this->updateLastlineBuffer("");
             this->editor_mode = Mim::MimMode::command;
         }
 
@@ -560,6 +567,12 @@ class Mim {
                 case ':':
                     this->updateLastlineBuffer(":");
                     this->editor_mode = Mim::MimMode::lastline;
+                    this->lastline_mode = Mim::LastlineMode::normal;
+                    break;
+                case '/':
+                    this->updateLastlineBuffer("/");
+                    this->editor_mode = Mim::MimMode::lastline;
+                    this->lastline_mode = Mim::LastlineMode::search;
                     break;
                 case 'q':
                     // TODO
@@ -684,13 +697,13 @@ class Mim {
                 }
             }
 
-            this->updateLastlineBuffer("");
             return lastline_command;
         }
 
         void processLastlineCommand(const string &command) {
             regex re_num("[0-9]+");
 
+            if (this->lastline_mode == Mim::LastlineMode::normal) {
             if (regex_match(command, re_num)) {
                 int jump_line = stoi(command);
                 this->keyHomeEnd(KEY_HOME);
@@ -708,6 +721,11 @@ class Mim {
             if (command.find("q") != string::npos) {
                 this->closeEditor();
             }
+            } else if (this->lastline_mode == Mim::LastlineMode::search) {
+            if (command.find("q") != string::npos) {
+                this->closeEditor();
+            }
+            }
 
             this->enterCommandMode();
         }
@@ -722,13 +740,14 @@ class Mim {
                     // TODO
                     break;
                 default:
-                    string lastline_command = this->getLastlineFromInput(":", ch);
+                    string prompt = (this->lastline_mode == Mim::LastlineMode::normal) ? ":" : "/";
+                    string lastline_command = this->getLastlineFromInput(prompt, ch);
                     processLastlineCommand(lastline_command);
                     break;
             }
         }
 
-        void processKeyPress(void) throw(MimError) {
+        void processKeyPress(void) {
             try {
                 int ch = this->readKey();
 
@@ -1098,7 +1117,7 @@ class Mim {
             return ret_string;
         }
 
-        void openFile(const char *filename) throw(MimError) {
+        void openFile(const char *filename) {
             fstream fs;
             fs.open(filename, fstream::in | fstream::out);
 
@@ -1123,6 +1142,11 @@ class Mim {
         }
 
         void saveToFile(void) {
+            if (this->dirty_flag == false) {
+                this->updateLastlineBuffer("No bytes written to disk");
+                return;
+            }
+
             if (this->editor_filename == "") {
                 this->editor_filename = this->getLastlineFromInput("Save as: ", '\0');
 
