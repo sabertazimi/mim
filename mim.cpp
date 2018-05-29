@@ -146,8 +146,6 @@ class Mim {
                 this->dirty_flag = false;
                 this->force_quit = false;
 
-                this->lastline_mode = Mim::LastlineMode::normal;
-
                 this->updateLastlineBuffer("");
                 this->editor_filename = "";
 
@@ -220,13 +218,13 @@ class Mim {
 
         enum MimMode {
             command,
-            insert,
-            lastline
+            insert
         };
 
         enum LastlineMode {
             normal,
-            search
+            search,
+            save
         };
 
         MimState editor_state;
@@ -248,7 +246,6 @@ class Mim {
         string command_buffer;
         string lastline_buffer;
 
-        int lastline_mode;
         time_t lastline_time;   // lastline update timer
 
         bool dirty_flag;
@@ -565,14 +562,13 @@ class Mim {
                     this->enterInsertMode();
                     break;
                 case ':':
-                    this->updateLastlineBuffer(":");
-                    this->editor_mode = Mim::MimMode::lastline;
-                    this->lastline_mode = Mim::LastlineMode::normal;
-                    break;
+                    {
+                        string lastline_command = this->getLastlineFromInput(Mim::LastlineMode::normal);
+                        processLastlineCommand(lastline_command);
+                        break;
+                    }
                 case '/':
-                    this->updateLastlineBuffer("/");
-                    this->editor_mode = Mim::MimMode::lastline;
-                    this->lastline_mode = Mim::LastlineMode::search;
+                    this->getLastlineFromInput(Mim::LastlineMode::search);
                     break;
                 case 'q':
                     // TODO
@@ -668,11 +664,22 @@ class Mim {
             }
         }
 
-        string getLastlineFromInput(const string &prompt, int first_ch) {
+        string getLastlineFromInput(Mim::LastlineMode mode) {
+            string prompt = "";
             string lastline_command = "";
 
-            if (first_ch != '\0') {
-                lastline_command.append(string(1, first_ch));
+            switch (mode) {
+                case Mim::LastlineMode::normal:
+                    prompt = ":";
+                    break;
+                case Mim::LastlineMode::search:
+                    prompt = "/";
+                    break;
+                case Mim::LastlineMode::save:
+                    prompt = "Save as: ";
+                    break;
+                default:
+                    break;
             }
 
             while (true) {
@@ -687,13 +694,25 @@ class Mim {
                     }
                 } else if (ch == KEY_ESC) {
                     lastline_command = "";
+
+                    if (mode == Mim::LastlineMode::search) {
+                        this->searchText(lastline_command, ch);
+                    }
                     break;
                 } else if (ch == '\r') {
                     if (lastline_command.length()) {
+                        if (mode == Mim::LastlineMode::search) {
+                            this->searchText(lastline_command, ch);
+                        }
+
                         break;
                     }
                 } else if (!iscntrl(ch) && ch < 128) {
                     lastline_command.append(string(1, ch));
+                }
+
+                if (mode == Mim::LastlineMode::search) {
+                    this->searchText(lastline_command, ch);
                 }
             }
 
@@ -702,46 +721,21 @@ class Mim {
 
         void processLastlineCommand(const string &command) {
             regex re_num("[0-9]+");
-            regex re_search("(s\\/)([^\\/]+)(\\/?)");
 
-            if (this->lastline_mode == Mim::LastlineMode::normal) {
-                if (regex_match(command, re_num)) {
-                    int jump_line = stoi(command);
-                    this->keyHomeEnd(KEY_HOME);
-                    this->cy = min(max(jump_line - 1, 0), this->num_rows);
-                } else {
-                    if (command.find("!") != string::npos) {
-                        this->force_quit = true;
-                    }
-
-                    if (command.find("w") != string::npos) {
-                        this->saveToFile();
-                    }
-
-                    if (command.find("q") != string::npos) {
-                        this->closeEditor();
-                    }
+            if (regex_match(command, re_num)) {
+                int jump_line = stoi(command);
+                this->keyHomeEnd(KEY_HOME);
+                this->cy = min(max(jump_line - 1, 0), this->num_rows);
+            } else {
+                if (command.find("!") != string::npos) {
+                    this->force_quit = true;
                 }
-            } else if (this->lastline_mode == Mim::LastlineMode::search) {
-                smatch sm;
 
-                if (regex_match(command, sm, re_search)) {
-                    // sm[1] for 's/'
-                    // sm[2] for regular expression to search
-                    // sm[3] for '/flags'
-                    for (int i = 0; i < this->num_rows; ++i) {
-                        RowBuffer row_buffer = this->rows_buffer[i];
-                        regex reg_target(sm.str(2));
-                        smatch sm_target;
+                if (command.find("w") != string::npos) {
+                    this->saveToFile();
+                }
 
-                        if (regex_search(row_buffer.render, sm_target, reg_target)) {
-                            this->cy = i;
-                            this->cx = rx2cx(row_buffer.raw, sm_target.position(0));
-                            this->row_off = this->num_rows;
-                            break;
-                        }
-                    }
-                } else if (command.find("q") != string::npos) {
+                if (command.find("q") != string::npos) {
                     this->closeEditor();
                 }
             }
@@ -749,22 +743,6 @@ class Mim {
             this->enterCommandMode();
         }
 
-        void processKeyPressInLastlineMode(const int &ch) {
-            switch (ch) {
-                case KEY_ESC:
-                case '\r':
-                    this->enterCommandMode();
-                    break;
-                case KEY_CTRL('q'):
-                    // TODO
-                    break;
-                default:
-                    string prompt = (this->lastline_mode == Mim::LastlineMode::normal) ? ":" : "/";
-                    string lastline_command = this->getLastlineFromInput(prompt, ch);
-                    processLastlineCommand(lastline_command);
-                    break;
-            }
-        }
 
         void processKeyPress(void) {
             try {
@@ -776,9 +754,6 @@ class Mim {
                         break;
                     case Mim::MimMode::insert:
                         this->processKeyPressInInsertMode(ch);
-                        break;
-                    case Mim::MimMode::lastline:
-                        this->processKeyPressInLastlineMode(ch);
                         break;
                     default:
                         break;
@@ -897,9 +872,6 @@ class Mim {
                     break;
                 case Mim::MimMode::insert:
                     status += "INSERT | ";
-                    break;
-                case Mim::MimMode::lastline:
-                    status += "LASTLINE | ";
                     break;
                 default:
                     break;
@@ -1150,6 +1122,34 @@ class Mim {
             ++this->cy;
         }
 
+        void searchText(string command, int ch) {
+            if (ch == '\r' || ch == KEY_ESC) {
+                return;
+            }
+
+            smatch sm;
+            regex re_search("([^\\/]+)(\\/?)");
+
+            if (regex_match(command, sm, re_search)) {
+                // sm[1] for regular expression to search
+                // sm[2] for '/flags'
+                for (int i = 0; i < this->num_rows; ++i) {
+                    RowBuffer row_buffer = this->rows_buffer[i];
+                    regex reg_target(sm.str(1));
+                    smatch sm_target;
+
+                    if (regex_search(row_buffer.render, sm_target, reg_target)) {
+                        this->cy = i;
+                        this->cx = rx2cx(row_buffer.raw, sm_target.position(0));
+                        this->row_off = this->num_rows;
+                        break;
+                    }
+                }
+            } else if (command.find("q") != string::npos) {
+                this->closeEditor();
+            }
+        }
+
         /*** files ***/
         const string rowsBufferToString(int &ret_len) {
             string ret_string = "";
@@ -1195,7 +1195,7 @@ class Mim {
             }
 
             if (this->editor_filename == "") {
-                this->editor_filename = this->getLastlineFromInput("Save as: ", '\0');
+                this->editor_filename = this->getLastlineFromInput(Mim::LastlineMode::save);
 
                 if (this->editor_filename == "") {
                     this->updateLastlineBuffer("Save aborted");
