@@ -702,27 +702,46 @@ class Mim {
 
         void processLastlineCommand(const string &command) {
             regex re_num("[0-9]+");
+            regex re_search("(s\\/)([^\\/]+)(\\/?)");
 
             if (this->lastline_mode == Mim::LastlineMode::normal) {
                 if (regex_match(command, re_num)) {
                     int jump_line = stoi(command);
                     this->keyHomeEnd(KEY_HOME);
                     this->cy = min(max(jump_line - 1, 0), this->num_rows);
-                }
+                } else {
+                    if (command.find("!") != string::npos) {
+                        this->force_quit = true;
+                    }
 
-                if (command.find("!") != string::npos) {
-                    this->force_quit = true;
-                }
+                    if (command.find("w") != string::npos) {
+                        this->saveToFile();
+                    }
 
-                if (command.find("w") != string::npos) {
-                    this->saveToFile();
-                }
-
-                if (command.find("q") != string::npos) {
-                    this->closeEditor();
+                    if (command.find("q") != string::npos) {
+                        this->closeEditor();
+                    }
                 }
             } else if (this->lastline_mode == Mim::LastlineMode::search) {
-                if (command.find("q") != string::npos) {
+                smatch sm;
+
+                if (regex_match(command, sm, re_search)) {
+                    // sm[1] for 's/'
+                    // sm[2] for regular expression to search
+                    // sm[3] for '/flags'
+                    for (int i = 0; i < this->num_rows; ++i) {
+                        RowBuffer row_buffer = this->rows_buffer[i];
+                        regex reg_target(sm.str(2));
+                        smatch sm_target;
+
+                        if (regex_search(row_buffer.render, sm_target, reg_target)) {
+                            this->cy = i;
+                            this->cx = rx2cx(row_buffer.raw, sm_target.position(0));
+                            this->row_off = this->num_rows;
+                            break;
+                        }
+                    }
+                } else if (command.find("q") != string::npos) {
                     this->closeEditor();
                 }
             }
@@ -966,7 +985,7 @@ class Mim {
 
         /*** row operations ***/
         int cx2rx(const string &raw, int cx) {
-            int rx = this->rx_base;
+            int rx = 0;
 
             for (int i = 0; i < cx; ++i) {
                 if (raw[i] == '\t') {
@@ -976,7 +995,35 @@ class Mim {
                 ++rx;
             }
 
+            // prevent space calculation from rx_base
+            rx += this->rx_base;
+
             return rx;
+        }
+
+        int rx2cx(const string &raw, int rx) {
+            int cur_rx = 0;
+            int cx = 0;
+            int len = (int)raw.length();
+
+            // prevent space calculation from rx_base
+            // rx -= this->rx_base;
+
+            while (cx < len) {
+                if (raw[cx] == '\t') {
+                    cur_rx += ((this->config.tabs_width - 1) - (cur_rx % this->config.tabs_width));
+                }
+
+                ++cur_rx;
+
+                if (cur_rx > rx) {
+                    return cx;
+                }
+
+                ++cx;
+            }
+
+            return cx;
         }
 
         const string renderFromRawWithConfig(const string &raw) {
