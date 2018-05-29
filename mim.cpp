@@ -149,7 +149,9 @@ class Mim {
                 this->command_buffer.clear();
                 this->dirty_flag = false;
                 this->force_quit = false;
+                this->last_search_row = 0;
                 this->last_search_buffer = "";
+                this->last_search_hl = "";
 
                 this->updateLastlineBuffer("");
                 this->editor_filename = "";
@@ -240,7 +242,8 @@ class Mim {
 
         enum HL {
             plain = 0,
-            number
+            number,
+            match
         };
 
         MimState editor_state;
@@ -264,7 +267,9 @@ class Mim {
 
         time_t lastline_time;   // lastline update timer
 
+        int last_search_row;
         string last_search_buffer;
+        string last_search_hl;
 
         bool dirty_flag;
         bool force_quit;
@@ -1050,6 +1055,8 @@ class Mim {
             switch (hl) {
                 case Mim::HL::number:
                     return 31;
+                case Mim::HL::match:
+                    return 34;
                 default:
                     return 37;
             }
@@ -1203,6 +1210,11 @@ class Mim {
             smatch sm;
             regex re_search("([^\\/]+)(\\/?)");
 
+            if (this->last_search_hl != "") {
+                this->rows_buffer[this->last_search_row].hl = this->last_search_hl;
+                this->last_search_hl = "";
+            }
+
             if (regex_match(target, sm, re_search)) {
                 // sm[1] for regular expression to search
                 // sm[2] for '/flags'
@@ -1223,10 +1235,16 @@ class Mim {
                     smatch sm_target;
 
                     if (regex_search(row_buffer.render, sm_target, reg_target)) {
+                        this->last_search_row = current;
                         this->last_search_buffer = target;
+                        this->last_search_hl = this->rows_buffer[current].hl;
+
                         this->cy = current;
                         this->cx = rx2cx(row_buffer.raw, sm_target.position(0));
                         this->row_off = this->num_rows;
+
+                        this->rows_buffer[current].hl = this->rows_buffer[current].hl
+                                                        .replace(sm_target.position(0), sm_target.length(0), sm_target.length(0), Mim::HL::match);
                         break;
                     }
                 }
