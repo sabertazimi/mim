@@ -16,6 +16,7 @@ Minimal vim-like text editor
 *   `r`: replace char
 *   `\b`: move left
 *   `\r`: move down
+*   `n/N`: jump to next/previous search point
 
 ### Insert Mode
 

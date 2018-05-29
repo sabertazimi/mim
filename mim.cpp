@@ -145,6 +145,7 @@ class Mim {
                 this->command_buffer.clear();
                 this->dirty_flag = false;
                 this->force_quit = false;
+                this->last_search_buffer = "";
 
                 this->updateLastlineBuffer("");
                 this->editor_filename = "";
@@ -227,6 +228,12 @@ class Mim {
             save
         };
 
+        enum Direction {
+            backward = -1,
+            input,
+            forward
+        };
+
         MimState editor_state;
         MimMode editor_mode;
         MimConfig config;
@@ -247,6 +254,8 @@ class Mim {
         string lastline_buffer;
 
         time_t lastline_time;   // lastline update timer
+
+        string last_search_buffer;
 
         bool dirty_flag;
         bool force_quit;
@@ -570,6 +579,12 @@ class Mim {
                 case '/':
                     this->getLastlineFromInput(Mim::LastlineMode::search);
                     break;
+                case 'n':
+                    this->searchText(this->last_search_buffer, Mim::Direction::forward);
+                    break;
+                case 'N':
+                    this->searchText(this->last_search_buffer, Mim::Direction::backward);
+                    break;
                 case 'q':
                     // TODO
                     break;
@@ -713,7 +728,7 @@ class Mim {
                 }
 
                 if (mode == Mim::LastlineMode::search) {
-                    this->searchText(lastline_command);
+                    this->searchText(lastline_command, Mim::Direction::input);
                 }
             }
 
@@ -1123,27 +1138,39 @@ class Mim {
             ++this->cy;
         }
 
-        void searchText(string command) {
+        void searchText(string target, Mim::Direction direct) {
             smatch sm;
             regex re_search("([^\\/]+)(\\/?)");
 
-            if (regex_match(command, sm, re_search)) {
+            if (regex_match(target, sm, re_search)) {
                 // sm[1] for regular expression to search
                 // sm[2] for '/flags'
+                int current = (direct == Mim::Direction::input) ? this->cy - 1: this->cy;
+                direct = (direct == Mim::Direction::input) ? Mim::Direction::forward : direct;
+
                 for (int i = 0; i < this->num_rows; ++i) {
-                    RowBuffer row_buffer = this->rows_buffer[i];
+                    current += direct;
+
+                    if (current == -1) {
+                        current = this->num_rows - 1;
+                    } else if (current == this->num_rows) {
+                        current = 0;
+                    }
+
+                    RowBuffer row_buffer = this->rows_buffer[current];
                     regex reg_target(sm.str(1));
                     smatch sm_target;
 
                     if (regex_search(row_buffer.render, sm_target, reg_target)) {
-                        this->cy = i;
+                        this->last_search_buffer = target;
+                        this->cy = current;
                         this->cx = rx2cx(row_buffer.raw, sm_target.position(0));
                         this->row_off = this->num_rows;
                         break;
                     }
                 }
-            } else if (command.find("q") != string::npos) {
-                this->closeEditor();
+            } else {
+                this->last_search_buffer = "";
             }
         }
 
