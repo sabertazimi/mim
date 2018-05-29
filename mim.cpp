@@ -153,6 +153,17 @@ class Mim {
                 this->last_search_buffer = "";
                 this->last_search_hl = "";
 
+                string _keywords_type[] = {
+                    "int", "long", "double", "float",
+                    "char", "unsigned", "signed", "void"
+                };
+                string _keywords_statement[] = {
+                    "switch", "if", "while", "for", "break", "continue", "return", "else",
+                    "struct", "union", "typedef", "static", "enum", "class", "case", "include"
+                };
+                this->keywords_type = vector<string>(_keywords_type, _keywords_type + sizeof(_keywords_type) / sizeof(_keywords_type[0]));
+                this->keywords_statement = vector<string>(_keywords_statement, _keywords_statement + sizeof(_keywords_statement) / sizeof(_keywords_statement[0]));
+
                 this->updateLastlineBuffer("");
                 this->editor_filename = "";
 
@@ -243,6 +254,8 @@ class Mim {
         enum HL {
             plain = 0,
             comment,
+            keyword_type,
+            keyword_statement,
             str,
             number,
             match
@@ -251,7 +264,7 @@ class Mim {
         MimState editor_state;
         MimMode editor_mode;
         MimConfig config;
-        const string version = "0.1.0";
+        const string version = "1.0.0";
 
         int cx;      // column number in the file (start with 0) (not cursor position)
         int cy;      // row number in the file (start with 0) (not cursor position)
@@ -273,7 +286,8 @@ class Mim {
         string last_search_buffer;
         string last_search_hl;
 
-        string filetype;
+        vector<string> keywords_type;
+        vector<string> keywords_statement;
 
         bool dirty_flag;
         bool force_quit;
@@ -1059,6 +1073,10 @@ class Mim {
             switch (hl) {
                 case Mim::HL::comment:
                     return 36;
+                case Mim::HL::keyword_type:
+                    return 33;
+                case Mim::HL::keyword_statement:
+                    return 32;
                 case Mim::HL::str:
                     return 35;
                 case Mim::HL::number:
@@ -1125,9 +1143,44 @@ class Mim {
                     hl += Mim::HL::str;
                     in_string = ch;
                 } else if ((isdigit(ch) && (prev_sep || prev_hl == Mim::HL::number))
-                    || (ch == '.' && prev_hl == Mim::HL::number)) {
+                        || (ch == '.' && prev_hl == Mim::HL::number)) {
                     hl += Mim::HL::number;
                     prev_sep = false;
+                } else if (prev_sep) {
+                    bool is_keyword = false;
+
+                    for (int j = 0, size = (int)this->keywords_type.size(); j < size; ++j) {
+                        int len = (int)this->keywords_type[j].length();
+
+                        if (render.substr(i, len) == this->keywords_type[j]
+                                && this->isSeparator(render[i + len])) {
+                            is_keyword = true;
+                            hl += string(len, Mim::HL::keyword_type);
+                            i += (len - 1);
+                            break;
+                        }
+                    }
+
+                    if (!is_keyword) {
+                        for (int j = 0, size = (int)this->keywords_statement.size(); j < size; ++j) {
+                            int len = (int)this->keywords_statement[j].length();
+
+                            if (render.substr(i, len) == this->keywords_statement[j]
+                                    && this->isSeparator(render[i + len])) {
+                                is_keyword = true;
+                                hl += string(len, Mim::HL::keyword_statement);
+                                i += (len - 1);
+                                break;
+                            }
+                        }
+                    }
+
+                    if (is_keyword) {
+                        prev_sep = false;
+                    } else {
+                        hl += Mim::HL::plain;
+                        prev_sep = this->isSeparator(ch);
+                    }
                 } else {
                     hl += Mim::HL::plain;
                     prev_sep = this->isSeparator(ch);
@@ -1287,7 +1340,7 @@ class Mim {
                         this->row_off = this->num_rows;
 
                         this->rows_buffer[current].hl = this->rows_buffer[current].hl
-                                                        .replace(sm_target.position(0), sm_target.length(0), sm_target.length(0), Mim::HL::match);
+                            .replace(sm_target.position(0), sm_target.length(0), sm_target.length(0), Mim::HL::match);
                         break;
                     }
                 }
