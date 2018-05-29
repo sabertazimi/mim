@@ -541,7 +541,7 @@ class Mim {
                     this->keyHomeEnd(KEY_HOME);
                     this->enterInsertMode();
                     break;
-                // delete
+                    // delete
                 case 'c':
                     this->keyMoveCursor(KEY_ARROW_RIGHT);
                     this->delChar();
@@ -551,7 +551,7 @@ class Mim {
                     this->keyMoveCursor(KEY_ARROW_RIGHT);
                     this->delChar();
                     break;
-                // modify:
+                    // modify:
                 case 'r':
                     {
                         int key = this->readKey();
@@ -560,7 +560,7 @@ class Mim {
                         this->insertChar(key);
                         break;
                     }
-                // change mode
+                    // change mode
                 case 'i':
                     this->enterInsertMode();
                     break;
@@ -577,7 +577,7 @@ class Mim {
                 case 'q':
                     // TODO
                     break;
-                // movement
+                    // movement
                 case 'h':
                 case '\b':
                     this->keyMoveCursor(KEY_ARROW_LEFT);
@@ -704,27 +704,27 @@ class Mim {
             regex re_num("[0-9]+");
 
             if (this->lastline_mode == Mim::LastlineMode::normal) {
-            if (regex_match(command, re_num)) {
-                int jump_line = stoi(command);
-                this->keyHomeEnd(KEY_HOME);
-                this->cy = min(max(jump_line - 1, 0), this->num_rows);
-            }
+                if (regex_match(command, re_num)) {
+                    int jump_line = stoi(command);
+                    this->keyHomeEnd(KEY_HOME);
+                    this->cy = min(max(jump_line - 1, 0), this->num_rows);
+                }
 
-            if (command.find("!") != string::npos) {
-                this->force_quit = true;
-            }
+                if (command.find("!") != string::npos) {
+                    this->force_quit = true;
+                }
 
-            if (command.find("w") != string::npos) {
-                this->saveToFile();
-            }
+                if (command.find("w") != string::npos) {
+                    this->saveToFile();
+                }
 
-            if (command.find("q") != string::npos) {
-                this->closeEditor();
-            }
+                if (command.find("q") != string::npos) {
+                    this->closeEditor();
+                }
             } else if (this->lastline_mode == Mim::LastlineMode::search) {
-            if (command.find("q") != string::npos) {
-                this->closeEditor();
-            }
+                if (command.find("q") != string::npos) {
+                    this->closeEditor();
+                }
             }
 
             this->enterCommandMode();
