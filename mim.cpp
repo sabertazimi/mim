@@ -242,6 +242,7 @@ class Mim {
 
         enum HL {
             plain = 0,
+            comment,
             str,
             number,
             match
@@ -1056,6 +1057,8 @@ class Mim {
         int syntax2color(Mim::HL hl) {
             // syntax theme config
             switch (hl) {
+                case Mim::HL::comment:
+                    return 36;
                 case Mim::HL::str:
                     return 35;
                 case Mim::HL::number:
@@ -1097,6 +1100,13 @@ class Mim {
             for (int i = 0, len = (int)render.length(); i < len; ++i) {
                 char ch = render[i];
                 char prev_hl = (i > 0) ? hl[i - 1] : (char)Mim::HL::plain;
+
+                if (!in_string) {
+                    if (render.substr(i, 2) == "//") {
+                        hl += string(len - i, Mim::HL::comment);
+                        break;
+                    }
+                }
 
                 if (in_string) {
                     hl += Mim::HL::str;
