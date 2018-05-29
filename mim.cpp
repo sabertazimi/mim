@@ -665,6 +665,11 @@ class Mim {
         }
 
         string getLastlineFromInput(Mim::LastlineMode mode) {
+            int orig_cx = this->cx;
+            int orig_cy = this->cy;
+            int orig_col_off = this->col_off;
+            int orig_row_off = this->row_off;
+
             string prompt = "";
             string lastline_command = "";
 
@@ -694,17 +699,13 @@ class Mim {
                     }
                 } else if (ch == KEY_ESC) {
                     lastline_command = "";
-
-                    if (mode == Mim::LastlineMode::search) {
-                        this->searchText(lastline_command, ch);
-                    }
+                    this->cx = orig_cx ;
+                    this->cy = orig_cy ;
+                    this->col_off = orig_col_off ;
+                    this->row_off = orig_row_off ;
                     break;
                 } else if (ch == '\r') {
                     if (lastline_command.length()) {
-                        if (mode == Mim::LastlineMode::search) {
-                            this->searchText(lastline_command, ch);
-                        }
-
                         break;
                     }
                 } else if (!iscntrl(ch) && ch < 128) {
@@ -712,7 +713,7 @@ class Mim {
                 }
 
                 if (mode == Mim::LastlineMode::search) {
-                    this->searchText(lastline_command, ch);
+                    this->searchText(lastline_command);
                 }
             }
 
@@ -1122,11 +1123,7 @@ class Mim {
             ++this->cy;
         }
 
-        void searchText(string command, int ch) {
-            if (ch == '\r' || ch == KEY_ESC) {
-                return;
-            }
-
+        void searchText(string command) {
             smatch sm;
             regex re_search("([^\\/]+)(\\/?)");
 

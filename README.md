@@ -32,7 +32,7 @@ Minimal vim-like text editor
 *   `:w`: save to file
 *   `!`: force quit flag
 *   `save as` file
-*   `/s/`: search
+*   `/`: search
 
 ### Status Bar
 
