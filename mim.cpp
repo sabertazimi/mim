@@ -83,20 +83,24 @@ struct CursorPosition {
 struct RowBuffer {
     string raw;
     string render;
+    string hl; // highlight config for render string
 
     RowBuffer(void) {
         this->raw = "";
         this->render = this->raw;
+        this->hl = "";
     }
 
     RowBuffer(const RowBuffer &buf) {
         this->raw = buf.raw;
         this->render = buf.render;
+        this->hl = buf.hl;
     }
 
     RowBuffer(const string &raw) {
         this->raw = raw;
         this->render = this->raw;
+        this->hl = "";
     }
 };
 
@@ -232,6 +236,11 @@ class Mim {
             backward = -1,
             input,
             forward
+        };
+
+        enum HL {
+            plain = 0,
+            number
         };
 
         MimState editor_state;
@@ -871,16 +880,28 @@ class Mim {
                     if (length > 0) {
                         length = min(length, this->config.screen_cols - this->rx_base);
                         string render_row = this->rows_buffer[file_row].render.substr(this->col_off, length);
+                        string hl = this->rows_buffer[file_row].hl.substr(this->col_off, length);
+                        int current_color = -1;
 
                         for (int i = 0; i < length; ++i) {
-                            if (isdigit(render_row[i])) {
-                                this->screen_buffer.append("\x1b[31m");
-                                this->screen_buffer.append(1, render_row[i]);
-                                this->screen_buffer.append("\x1b[39m");
+                            if (hl[i] == Mim::HL::plain) {
+                                if (current_color != -1) {
+                                    this->screen_buffer.append("\x1b[39m");
+                                    current_color = -1;
+                                }
                             } else {
-                                this->screen_buffer.append(1, render_row[i]);
+                                int color = this->syntax2color((Mim::HL)hl[i]);
+
+                                if (color != current_color) {
+                                    current_color = color;
+                                    this->screen_buffer.append("\x1b[" + to_string(color) + "m");
+                                }
                             }
+
+                            this->screen_buffer.append(1, render_row[i]);
                         }
+
+                        this->screen_buffer.append("\x1b[39m");
                     }
                 }
 
@@ -981,7 +1002,7 @@ class Mim {
             this->showCursor();
         }
 
-        /*** row operations ***/
+        /*** translation ***/
         int cx2rx(const string &raw, int cx) {
             int rx = 0;
 
@@ -1024,7 +1045,17 @@ class Mim {
             return cx;
         }
 
-        const string renderFromRawWithConfig(const string &raw) {
+        int syntax2color(Mim::HL hl) {
+            // syntax theme config
+            switch (hl) {
+                case Mim::HL::number:
+                    return 31;
+                default:
+                    return 37;
+            }
+        }
+
+        const string raw2render(const string &raw) {
             string ret = "";
 
             for (int i = 0, len = (int)raw.length(); i < len; ++i) {
@@ -1042,13 +1073,29 @@ class Mim {
             return ret;
         }
 
+        const string render2hl(const string &render) {
+            string hl = "";
+
+            for (int i = 0; i < (int)render.length(); ++i) {
+                if (isdigit(render[i])) {
+                    hl += Mim::HL::number;
+                } else {
+                    hl += Mim::HL::plain;
+                }
+            }
+
+            return hl;
+        }
+
+        /*** row operations ***/
         void insertRow(int num_row, const string &line) {
             if (num_row < 0 || num_row > this->num_rows) {
                 return;
             }
 
             this->rows_buffer.insert(this->rows_buffer.begin() + num_row, RowBuffer(line));
-            this->rows_buffer[num_row].render = this->renderFromRawWithConfig(line);
+            this->rows_buffer[num_row].render = this->raw2render(line);
+            this->rows_buffer[num_row].hl = this->render2hl(this->rows_buffer[num_row].render);
             ++this->num_rows;
             this->dirty_flag = true;
         }
@@ -1065,7 +1112,8 @@ class Mim {
 
         void appendStringToRow(int num_row, const string &str) {
             this->rows_buffer[num_row].raw.append(str);
-            this->rows_buffer[num_row].render = this->renderFromRawWithConfig(this->rows_buffer[num_row].raw);
+            this->rows_buffer[num_row].render = this->raw2render(this->rows_buffer[num_row].raw);
+            this->rows_buffer[num_row].hl = this->render2hl(this->rows_buffer[num_row].render);
             this->dirty_flag = true;
         }
 
@@ -1077,7 +1125,8 @@ class Mim {
             }
 
             row.raw = row.raw.substr(0, at) + string(1, ch) + row.raw.substr(at);
-            row.render = this->renderFromRawWithConfig(row.raw);
+            row.render = this->raw2render(row.raw);
+            row.hl = this->render2hl(row.render);
             this->rows_buffer[num_row] = row;
             this->dirty_flag = true;
         }
@@ -1092,7 +1141,8 @@ class Mim {
             string left = row.raw.substr(0, at - 1);
             string right = (at < (int)row.raw.length()) ? row.raw.substr(at) : "";
             row.raw = left + right;
-            row.render = this->renderFromRawWithConfig(row.raw);
+            row.render = this->raw2render(row.raw);
+            row.hl = this->render2hl(row.render);
             this->rows_buffer[num_row] = row;
             this->dirty_flag = true;
         }
@@ -1138,7 +1188,8 @@ class Mim {
             } else {
                 string row_string = this->rows_buffer[this->cy].raw;
                 this->rows_buffer[this->cy].raw = row_string.substr(0, this->cx);
-                this->rows_buffer[this->cy].render = this->renderFromRawWithConfig(this->rows_buffer[this->cy].raw);
+                this->rows_buffer[this->cy].render = this->raw2render(this->rows_buffer[this->cy].raw);
+                this->rows_buffer[this->cy].hl = this->render2hl(this->rows_buffer[this->cy].render);
 
                 string right_string = row_string.substr(this->cx);
                 this->insertRow(this->cy + 1, right_string);
