@@ -242,6 +242,7 @@ class Mim {
 
         enum HL {
             plain = 0,
+            str,
             number,
             match
         };
@@ -270,6 +271,8 @@ class Mim {
         int last_search_row;
         string last_search_buffer;
         string last_search_hl;
+
+        string filetype;
 
         bool dirty_flag;
         bool force_quit;
@@ -1053,6 +1056,8 @@ class Mim {
         int syntax2color(Mim::HL hl) {
             // syntax theme config
             switch (hl) {
+                case Mim::HL::str:
+                    return 35;
                 case Mim::HL::number:
                     return 31;
                 case Mim::HL::match:
@@ -1062,32 +1067,60 @@ class Mim {
             }
         }
 
+        bool isSeparator(int ch) {
+            return isspace(ch) || ch == '\0' || strchr(",.()+-/*=~%<>[];", ch) != NULL;
+        }
+
         const string raw2render(const string &raw) {
-            string ret = "";
+            string render = "";
 
             for (int i = 0, len = (int)raw.length(); i < len; ++i) {
                 if (raw[i] == '\t') {
-                    ret.append(" ");
+                    render.append(" ");
 
-                    while (ret.length() % (this->config.tabs_width) != 0) {
-                        ret.append(" ");
+                    while (render.length() % (this->config.tabs_width) != 0) {
+                        render.append(" ");
                     }
                 } else {
-                    ret.append(1, raw[i]);
+                    render.append(1, raw[i]);
                 }
             }
 
-            return ret;
+            return render;
         }
 
         const string render2hl(const string &render) {
             string hl = "";
+            bool prev_sep = true;
+            int in_string = 0;
 
-            for (int i = 0; i < (int)render.length(); ++i) {
-                if (isdigit(render[i])) {
+            for (int i = 0, len = (int)render.length(); i < len; ++i) {
+                char ch = render[i];
+                char prev_hl = (i > 0) ? hl[i - 1] : (char)Mim::HL::plain;
+
+                if (in_string) {
+                    hl += Mim::HL::str;
+
+                    if (ch == '\\' && (i + 1) < len) {
+                        hl += Mim::HL::str;
+                        ++i;
+                    } else {
+                        if (ch == in_string) {
+                            in_string = 0;
+                        }
+
+                        prev_sep = true;
+                    }
+                } else if (ch == '"' || ch == '\'') {
+                    hl += Mim::HL::str;
+                    in_string = ch;
+                } else if ((isdigit(ch) && (prev_sep || prev_hl == Mim::HL::number))
+                    || (ch == '.' && prev_hl == Mim::HL::number)) {
                     hl += Mim::HL::number;
+                    prev_sep = false;
                 } else {
                     hl += Mim::HL::plain;
+                    prev_sep = this->isSeparator(ch);
                 }
             }
 
