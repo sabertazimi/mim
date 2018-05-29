@@ -48,8 +48,6 @@ Minimal vim-like text editor
 
 ## Future Features
 
-*   search bar
-*   syntax highlight
 *   more command/insert/lastline operations
 *   complex command (e.g cl, dd)
 *   undo/redo
