@@ -870,7 +870,17 @@ class Mim {
 
                     if (length > 0) {
                         length = min(length, this->config.screen_cols - this->rx_base);
-                        this->screen_buffer.append(this->rows_buffer[file_row].render.substr(this->col_off, length));
+                        string render_row = this->rows_buffer[file_row].render.substr(this->col_off, length);
+
+                        for (int i = 0; i < length; ++i) {
+                            if (isdigit(render_row[i])) {
+                                this->screen_buffer.append("\x1b[31m");
+                                this->screen_buffer.append(1, render_row[i]);
+                                this->screen_buffer.append("\x1b[39m");
+                            } else {
+                                this->screen_buffer.append(1, render_row[i]);
+                            }
+                        }
                     }
                 }
 
