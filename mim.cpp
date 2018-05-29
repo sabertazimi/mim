@@ -84,23 +84,27 @@ struct RowBuffer {
     string raw;
     string render;
     string hl; // highlight config for render string
+    bool hl_open_comment;
 
     RowBuffer(void) {
         this->raw = "";
         this->render = this->raw;
         this->hl = "";
+        this->hl_open_comment = false;
     }
 
     RowBuffer(const RowBuffer &buf) {
         this->raw = buf.raw;
         this->render = buf.render;
         this->hl = buf.hl;
+        this->hl_open_comment = buf.hl_open_comment;
     }
 
     RowBuffer(const string &raw) {
         this->raw = raw;
         this->render = this->raw;
         this->hl = "";
+        this->hl_open_comment = false;
     }
 };
 
@@ -154,8 +158,8 @@ class Mim {
                 this->last_search_hl = "";
 
                 string _keywords_type[] = {
-                    "int", "long", "double", "float",
-                    "char", "unsigned", "signed", "void"
+                    "int", "long", "double", "float", "bool",
+                    "char", "string", "unsigned", "signed", "void"
                 };
                 string _keywords_statement[] = {
                     "switch", "if", "while", "for", "break", "continue", "return", "else",
@@ -254,6 +258,7 @@ class Mim {
         enum HL {
             plain = 0,
             comment,
+            mlcomment,
             keyword_type,
             keyword_statement,
             str,
@@ -1072,15 +1077,16 @@ class Mim {
             // syntax theme config
             switch (hl) {
                 case Mim::HL::comment:
+                case Mim::HL::mlcomment:
                     return 36;
                 case Mim::HL::keyword_type:
-                    return 33;
+                    return 31;
                 case Mim::HL::keyword_statement:
                     return 32;
                 case Mim::HL::str:
                     return 35;
                 case Mim::HL::number:
-                    return 31;
+                    return 33;
                 case Mim::HL::match:
                     return 34;
                 default:
@@ -1110,19 +1116,40 @@ class Mim {
             return render;
         }
 
-        const string render2hl(const string &render) {
+        const string render2hl(const string &render, int idx) {
             string hl = "";
             bool prev_sep = true;
+            bool in_comment = (idx > 0 && this->rows_buffer[idx - 1].hl_open_comment);
             int in_string = 0;
 
             for (int i = 0, len = (int)render.length(); i < len; ++i) {
                 char ch = render[i];
                 char prev_hl = (i > 0) ? hl[i - 1] : (char)Mim::HL::plain;
 
-                if (!in_string) {
+                if (!in_string && !in_comment) {
                     if (render.substr(i, 2) == "//") {
                         hl += string(len - i, Mim::HL::comment);
                         break;
+                    }
+                }
+
+                if (!in_string) {
+                    if (in_comment) {
+                        hl += Mim::HL::mlcomment;
+
+                        if (render.substr(i, 2) == "*/") {
+                            hl += Mim::HL::mlcomment;
+                            in_comment = false;
+                            prev_sep = true;
+                            ++i;
+                        }
+
+                        continue;
+                    } else if (render.substr(i, 2) == "/*") {
+                        hl += string(2, Mim::HL::mlcomment);
+                        in_comment = true;
+                        ++i;
+                        continue;
                     }
                 }
 
@@ -1187,6 +1214,13 @@ class Mim {
                 }
             }
 
+            int changed = (this->rows_buffer[idx].hl_open_comment != in_comment);
+            this->rows_buffer[idx].hl_open_comment = in_comment;
+
+            if (changed && (idx + 1) < this->num_rows) {
+                this->rows_buffer[idx + 1].hl = this->render2hl(this->rows_buffer[idx + 1].render, idx + 1);
+            }
+
             return hl;
         }
 
@@ -1198,8 +1232,8 @@ class Mim {
 
             this->rows_buffer.insert(this->rows_buffer.begin() + num_row, RowBuffer(line));
             this->rows_buffer[num_row].render = this->raw2render(line);
-            this->rows_buffer[num_row].hl = this->render2hl(this->rows_buffer[num_row].render);
             ++this->num_rows;
+            this->rows_buffer[num_row].hl = this->render2hl(this->rows_buffer[num_row].render, num_row);
             this->dirty_flag = true;
         }
 
@@ -1216,7 +1250,7 @@ class Mim {
         void appendStringToRow(int num_row, const string &str) {
             this->rows_buffer[num_row].raw.append(str);
             this->rows_buffer[num_row].render = this->raw2render(this->rows_buffer[num_row].raw);
-            this->rows_buffer[num_row].hl = this->render2hl(this->rows_buffer[num_row].render);
+            this->rows_buffer[num_row].hl = this->render2hl(this->rows_buffer[num_row].render, num_row);
             this->dirty_flag = true;
         }
 
@@ -1229,8 +1263,8 @@ class Mim {
 
             row.raw = row.raw.substr(0, at) + string(1, ch) + row.raw.substr(at);
             row.render = this->raw2render(row.raw);
-            row.hl = this->render2hl(row.render);
             this->rows_buffer[num_row] = row;
+            row.hl = this->render2hl(row.render, num_row);
             this->dirty_flag = true;
         }
 
@@ -1245,8 +1279,8 @@ class Mim {
             string right = (at < (int)row.raw.length()) ? row.raw.substr(at) : "";
             row.raw = left + right;
             row.render = this->raw2render(row.raw);
-            row.hl = this->render2hl(row.render);
             this->rows_buffer[num_row] = row;
+            row.hl = this->render2hl(row.render, num_row);
             this->dirty_flag = true;
         }
 
@@ -1292,10 +1326,11 @@ class Mim {
                 string row_string = this->rows_buffer[this->cy].raw;
                 this->rows_buffer[this->cy].raw = row_string.substr(0, this->cx);
                 this->rows_buffer[this->cy].render = this->raw2render(this->rows_buffer[this->cy].raw);
-                this->rows_buffer[this->cy].hl = this->render2hl(this->rows_buffer[this->cy].render);
 
                 string right_string = row_string.substr(this->cx);
                 this->insertRow(this->cy + 1, right_string);
+
+                this->rows_buffer[this->cy].hl = this->render2hl(this->rows_buffer[this->cy].render, this->cy);
             }
 
             this->keyHomeEnd(KEY_HOME);
