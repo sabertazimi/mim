@@ -163,7 +163,7 @@ class Mim {
                 };
                 string _keywords_statement[] = {
                     "switch", "if", "while", "for", "break", "continue", "return", "else",
-                    "struct", "union", "typedef", "static", "enum", "class", "case", "include"
+                    "struct", "union", "typedef", "static", "enum", "class", "case", "include", "#include"
                 };
                 this->keywords_type = vector<string>(_keywords_type, _keywords_type + sizeof(_keywords_type) / sizeof(_keywords_type[0]));
                 this->keywords_statement = vector<string>(_keywords_statement, _keywords_statement + sizeof(_keywords_statement) / sizeof(_keywords_statement[0]));
@@ -1095,7 +1095,7 @@ class Mim {
         }
 
         bool isSeparator(int ch) {
-            return isspace(ch) || ch == '\0' || strchr(",.()+-/*=~%<>[];", ch) != NULL;
+            return isspace(ch) || ch == '\0' || strchr(",.()+-/*=~%<>[];{}", ch) != NULL;
         }
 
         const string raw2render(const string &raw) {
@@ -1205,11 +1205,21 @@ class Mim {
                     if (is_keyword) {
                         prev_sep = false;
                     } else {
-                        hl += Mim::HL::plain;
+                        if (this->isSeparator(ch)){
+                            hl += Mim::HL::comment;
+                        } else {
+                            hl += Mim::HL::plain;
+                        }
+
                         prev_sep = this->isSeparator(ch);
                     }
                 } else {
-                    hl += Mim::HL::plain;
+                    if (this->isSeparator(ch)){
+                        hl += Mim::HL::comment;
+                    } else {
+                        hl += Mim::HL::plain;
+                    }
+
                     prev_sep = this->isSeparator(ch);
                 }
             }
