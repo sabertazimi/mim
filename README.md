@@ -77,4 +77,4 @@ to `raw mode` (interact immediately)
 *   [The Craft of Text Editing](https://www.finseth.com/craft/craft.pdf)
 *   [VSCode Vim](https://github.com/VSCodeVim/Vim)
 *   [Build Your Own Text Editor](https://viewsourcecode.org/snaptoken/kilo/index.html)
-
+*   [Atom/VSCode](https://www.zhihu.com/question/272156541/answer/367784539)
